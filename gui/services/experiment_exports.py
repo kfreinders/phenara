@@ -7,7 +7,7 @@ import shutil
 from typing import Any
 from uuid import UUID
 
-from scripts.scheduling.run_store import run_directory_name
+from scripts.scheduling.run_store import deleted_run_marker, run_directory_name
 from scripts.scheduling.make_schedule import atomic_write_text
 
 
@@ -93,20 +93,21 @@ def delete_experiment_data(
         raise ExperimentExportError("The completed experiment data is unavailable.")
     if archive.is_symlink():
         raise ExperimentExportError("The experiment archive path is unsafe.")
-    archive.unlink(missing_ok=True)
-    for path in directory.iterdir():
-        if path == directory / "run.json":
-            continue
-        if path.is_dir() and not path.is_symlink():
-            shutil.rmtree(path)
-        else:
-            path.unlink()
-    manifest["state"] = "deleted"
-    manifest["deleted_at"] = datetime.now(timezone.utc).isoformat()
+    marker = deleted_run_marker(output_root, schedule["run"]["id"])
     atomic_write_text(
-        directory / "run.json",
-        json.dumps(manifest, indent=2) + "\n",
+        marker,
+        json.dumps(
+            {
+                "run_id": schedule["run"]["id"],
+                "schedule_hash": schedule["hash"],
+                "deleted_at": datetime.now(timezone.utc).isoformat(),
+            },
+            indent=2,
+        )
+        + "\n",
     )
+    archive.unlink(missing_ok=True)
+    shutil.rmtree(directory)
 
 
 def _read_matching_manifest(

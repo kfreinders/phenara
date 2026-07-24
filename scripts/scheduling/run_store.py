@@ -17,6 +17,7 @@ from .schedule import RunMetadata, Schedule
 RUN_MANIFEST_VERSION = 1
 CAPTURE_EVENT_VERSION = 1
 _SAFE_NAME = re.compile(r"[^a-z0-9]+")
+DELETED_RUNS_DIRECTORY = ".phenopi-deleted-runs"
 
 
 def validate_run_metadata(value: Any) -> dict[str, Any] | None:
@@ -33,6 +34,11 @@ def validate_run_metadata(value: Any) -> dict[str, Any] | None:
 def run_directory_name(start_date: str, run: dict[str, Any]) -> str:
     slug = _SAFE_NAME.sub("-", run["name"].lower()).strip("-") or "experiment"
     return f"{start_date}_{slug[:48]}_{run['id'].replace('-', '')[:8]}"
+
+
+def deleted_run_marker(output_root: Path, run_id: str) -> Path:
+    """Return the private tombstone that prevents recreation after deletion."""
+    return output_root / DELETED_RUNS_DIRECTORY / f"{run_id}.json"
 
 
 class RunArchive:
@@ -67,6 +73,9 @@ class RunArchive:
         self._initialize(schedule_data)
 
     def _initialize(self, schedule: dict[str, Any]) -> None:
+        if deleted_run_marker(self.directory.parent, self.run["id"]).is_file():
+            self._state = "deleted"
+            return
         existing_path = self._find_existing_manifest(self.directory.parent)
         if existing_path is not None and existing_path != self.manifest_path:
             raise ValueError("This run ID is already used by another dataset directory.")
@@ -128,6 +137,15 @@ class RunArchive:
         if state not in {"completed", "superseded", "cancelled"}:
             raise ValueError("Unsupported terminal run state.")
         with self._lock:
+            if self._state == "deleted" or (
+                not self.manifest_path.exists()
+                and deleted_run_marker(
+                    self.directory.parent,
+                    self.run["id"],
+                ).is_file()
+            ):
+                self._state = "deleted"
+                return
             if state == "completed" and not self.manifest_path.exists():
                 # Older GUI versions removed the entire completed dataset.
                 # Nothing remains to finalize, and this must not block loading

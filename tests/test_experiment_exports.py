@@ -13,7 +13,7 @@ from gui.services.experiment_exports import (
     export_details,
     validate_finished_experiment,
 )
-from scripts.scheduling.run_store import RunArchive
+from scripts.scheduling.run_store import RunArchive, deleted_run_marker
 
 
 NOW = datetime(2026, 7, 22, 12, tzinfo=timezone.utc)
@@ -96,12 +96,13 @@ def test_deletion_removes_only_the_matching_dataset_and_zip(tmp_path):
 
     delete_experiment_data(tmp_path, schedule)
 
-    assert run.directory.exists()
+    assert not run.directory.exists()
     assert not run.archive_path.exists()
-    assert {path.name for path in run.directory.iterdir()} == {"run.json"}
-    manifest = json.loads(run.manifest_path.read_text())
-    assert manifest["state"] == "deleted"
-    assert manifest["deleted_at"] is not None
+    marker = json.loads(
+        deleted_run_marker(tmp_path, schedule["run"]["id"]).read_text()
+    )
+    assert marker["run_id"] == schedule["run"]["id"]
+    assert marker["deleted_at"] is not None
     assert unrelated.exists()
 
     details = export_details(tmp_path, schedule)
@@ -157,7 +158,7 @@ def test_deleted_run_does_not_block_replacement_schedule(tmp_path):
     run.mark_ended("completed")
     run.mark_ended("superseded", superseded_by=str(uuid4()))
 
-    assert json.loads(run.manifest_path.read_text())["state"] == "deleted"
+    assert not run.directory.exists()
     assert not run.archive_path.exists()
 
 
@@ -173,7 +174,7 @@ def test_deleted_run_stays_empty_after_scheduler_restart(tmp_path):
     )
     restarted.record_unreported_past(NOW.replace(hour=13))
 
-    assert {path.name for path in restarted.directory.iterdir()} == {"run.json"}
+    assert not restarted.directory.exists()
 
 
 def test_legacy_fully_deleted_run_does_not_block_replacement(tmp_path):
