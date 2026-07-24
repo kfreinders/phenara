@@ -1,147 +1,190 @@
-# from __future__ import annotations
-#
-# import argparse
-# from datetime import datetime
-# from pathlib import Path
-# import time
-#
-# import numpy as np
-# from PIL import Image
-# from picamera2 import Picamera2
-#
-#
-# def capture_image(
-#     size: tuple[int, int] = (4608, 2592),
-#     warmup_time: float = 10
-# ) -> np.ndarray:
-#     """
-#     Capture a single image from the camera as a NumPy array.
-#
-#     Initializes the camera, applies a still configuration, and waits for a
-#     warmup period to allow auto-exposure and white balance to stabilize. The
-#     captured frame is returned as a contiguous array suitable for further
-#     processing or saving with PIL.
-#
-#     Parameters
-#     ----------
-#     size : tuple[int, int]
-#         Resolution of the captured image as (width, height).
-#     warmup_time : float
-#         Number of seconds to wait after starting the camera before capturing
-#         the image, allowing camera settings to stabilize.
-#
-#     Returns
-#     -------
-#     np.ndarray
-#         Image array in RGB-compatible format with shape (height, width, 3) and
-#         dtype uint8.
-#     """
-#     picam2 = Picamera2(0)
-#
-#     config = picam2.create_still_configuration(
-#         main={"size": size, "format": "BGR888"}
-#     )
-#     picam2.configure(config)
-#
-#     picam2.start()
-#     time.sleep(warmup_time)
-#
-#     frame = picam2.capture_array()
-#
-#     picam2.stop()
-#     picam2.close()
-#
-#     rgb = np.ascontiguousarray(frame)
-#     return rgb
-#
-#
-# def main() -> None:
-#     parser = argparse.ArgumentParser(
-#         description="Capture a single image from the camera."
-#     )
-#     parser.add_argument(
-#         "--output-dir",
-#         type=Path,
-#         required=True,
-#         help="Directory where the captured image will be saved.",
-#     )
-#     parser.add_argument(
-#         "--warmup-time",
-#         type=float,
-#         default=10.0,
-#         help=(
-#             "Seconds to wait for camera auto-exposure and white balance "
-#             "to settle."
-#         ),
-#     )
-#     args = parser.parse_args()
-#
-#     output_dir: Path = args.output_dir
-#
-#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#     output_dir.mkdir(parents=True, exist_ok=True)
-#     output_path = output_dir / f"capture_{timestamp}.jpg"
-#
-#     print(f"[capture] Starting capture at {timestamp}")
-#     print(f"[capture] Output path: {output_path}")
-#
-#     try:
-#         img = capture_image(warmup_time=args.warmup_time)
-#         Image.fromarray(img, mode="RGB").save(output_path, quality=100)
-#         print(f"[capture] Saved image to {output_path}")
-#     except Exception as exc:
-#         print(f"[capture] ERROR: {exc}")
-#         raise
-
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from datetime import datetime
+import fcntl
+import os
 from pathlib import Path
+import shutil
+import sys
+import tempfile
+import time
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from phenopi.config import (
+    DEVELOPMENT_IMAGE_DIR,
+    DEVELOPMENT_MODE_PATH,
+    RUNTIME_DIR,
+)
+from phenopi.development import (
+    DEVELOPMENT_MARKER_NAME,
+    calibration_image,
+    read_development_mode,
+    sequence_images,
+)
 
 
-def write_placeholder_capture(
-    output_dir: Path | None = None,
+DEFAULT_SIZE = (4608, 2592)
+DEFAULT_WARMUP_SECONDS = 10.0
+
+
+def capture_image(
+    destination: Path,
     *,
-    captured_at: datetime | None = None,
+    size: tuple[int, int] = DEFAULT_SIZE,
+    warmup_time: float = DEFAULT_WARMUP_SECONDS,
+) -> None:
+    """Capture one Raspberry Pi still directly to a temporary JPEG."""
+    try:
+        from picamera2 import Picamera2
+    except ImportError as exc:
+        raise RuntimeError(
+            "Picamera2 is not installed; install python3-picamera2 on the Raspberry Pi."
+        ) from exc
+
+    camera = Picamera2(0)
+    started = False
+    try:
+        configuration = camera.create_still_configuration(
+            main={"size": size}
+        )
+        camera.configure(configuration)
+        camera.start()
+        started = True
+        time.sleep(warmup_time)
+        camera.capture_file(str(destination), format="jpeg")
+    finally:
+        try:
+            if started:
+                camera.stop()
+        finally:
+            camera.close()
+
+
+def capture_once(
+    *,
+    output_dir: Path | None = None,
     output_path: Path | None = None,
+    captured_at: datetime | None = None,
+    warmup_time: float = DEFAULT_WARMUP_SECONDS,
+    calibration_preview: bool = False,
+    development_mode_path: Path = DEVELOPMENT_MODE_PATH,
+    development_image_dir: Path = DEVELOPMENT_IMAGE_DIR,
+    runtime_dir: Path = RUNTIME_DIR,
 ) -> Path:
-    """Write an empty development capture using the production filename."""
+    """Produce one real or simulated JPEG using the production filename."""
     if output_dir is None and output_path is None:
         raise ValueError("An output directory or output path is required.")
     timestamp = (captured_at or datetime.now()).strftime("%Y%m%d_%H%M%S")
-    if output_path is not None:
-        destination = output_path
-    else:
-        assert output_dir is not None
-        destination = output_dir / f"capture_{timestamp}.jpg"
+    destination = (
+        output_path
+        if output_path is not None
+        else output_dir / f"capture_{timestamp}.jpg"
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(b"")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+
+    with camera_lock(runtime_dir / "camera.lock"):
+        temporary = _temporary_jpeg(destination)
+        try:
+            if read_development_mode(development_mode_path):
+                _write_development_capture(
+                    temporary,
+                    destination=destination,
+                    image_dir=development_image_dir,
+                    calibration_preview=calibration_preview,
+                )
+            else:
+                capture_image(temporary, warmup_time=warmup_time)
+            if not temporary.is_file() or temporary.stat().st_size == 0:
+                raise RuntimeError("Capture did not produce a non-empty JPEG.")
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
     return destination
+
+
+def _write_development_capture(
+    temporary: Path,
+    *,
+    destination: Path,
+    image_dir: Path,
+    calibration_preview: bool,
+) -> None:
+    if calibration_preview:
+        source = calibration_image(image_dir)
+    else:
+        images = sequence_images(image_dir)
+        completed = len(
+            [
+                path
+                for path in destination.parent.glob("capture_*.jpg")
+                if path.is_file() and path != destination
+            ]
+        )
+        if completed >= len(images):
+            raise RuntimeError(
+                "Development capture sequence is exhausted "
+                f"({len(images)} sample images)."
+            )
+        source = images[completed]
+        marker = destination.parent / DEVELOPMENT_MARKER_NAME
+        if not marker.exists():
+            marker.write_text(
+                "This dataset was generated in Phenopi development mode.\n"
+                "Capture images were copied from the configured sample-image directory.\n"
+            )
+    shutil.copyfile(source, temporary)
+
+
+def _temporary_jpeg(destination: Path) -> Path:
+    descriptor, name = tempfile.mkstemp(
+        prefix=f".{destination.stem}.",
+        suffix=".jpg",
+        dir=destination.parent,
+    )
+    os.close(descriptor)
+    path = Path(name)
+    path.unlink()
+    return path
+
+
+@contextmanager
+def camera_lock(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Write an empty placeholder image for local development."
+        description="Capture one Phenopi image."
     )
     destination = parser.add_mutually_exclusive_group(required=True)
-    destination.add_argument(
-        "--output-dir",
-        type=Path,
-        help="Directory where the placeholder capture will be saved.",
-    )
-    destination.add_argument(
-        "--output-path",
-        type=Path,
-        help="Exact path to use for the placeholder capture.",
+    destination.add_argument("--output-dir", type=Path)
+    destination.add_argument("--output-path", type=Path)
+    parser.add_argument("--warmup-time", type=float, default=DEFAULT_WARMUP_SECONDS)
+    parser.add_argument(
+        "--calibration-preview",
+        action="store_true",
+        help="Use the reserved development calibration image when simulating.",
     )
     args = parser.parse_args()
-
-    output_path = write_placeholder_capture(
-        args.output_dir or args.output_path.parent,
+    result = capture_once(
+        output_dir=args.output_dir,
         output_path=args.output_path,
+        warmup_time=args.warmup_time,
+        calibration_preview=args.calibration_preview,
     )
-    print(f"[capture] Wrote placeholder image to {output_path}")
+    print(f"[capture] Saved image to {result}")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from gui.routes import analysis, schedule_api, scheduler
+from gui.routes import analysis, development, schedule_api, scheduler
 from phenopi.config import GUI_HOST, GUI_PORT, PROJECT_ROOT
 
 
@@ -16,7 +16,7 @@ def _secure_response(response, path: str):
     response.headers["Permissions-Policy"] = "camera=(self)"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-        "connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; "
+        "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; "
         "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
         "form-action 'self'"
     )
@@ -77,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(schedule_api.router)
     app.include_router(scheduler.router)
     app.include_router(analysis.router)
+    app.include_router(development.router)
 
     react_dir = PROJECT_ROOT / "gui" / "react-dist"
     assets_dir = react_dir / "assets"

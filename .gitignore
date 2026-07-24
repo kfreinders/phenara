@@ -28,9 +28,13 @@ docs/*.lof
 docs/*.lot
 docs/*.pdf
 
-# Root-level virtualenv artefacts, if accidentally created
+# Local development camera samples (large and machine-specific)
+/development/sample-images/*
+!/development/sample-images/README.md
+
 /bin/
 /include/
 /lib/
 /lib64/
 /pyvenv.cfg
+development/sample-images

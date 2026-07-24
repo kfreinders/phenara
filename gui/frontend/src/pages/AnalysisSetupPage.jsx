@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { ErrorNotice, HelpTip, Loading, WorkflowSteps } from "../components";
+import { ErrorNotice, Loading, WorkflowSteps } from "../components";
 import { attachDraftAnalysis, detectAnalysisRoi, getAnalysisConfig, getCameraPreview, previewAnalysis, saveAnalysisProfile } from "../api";
 
 const stageLabels = {
@@ -8,6 +8,15 @@ const stageLabels = {
   mask: ["Plant mask", "White pixels are selected"],
   overlay: ["Segmentation overlay", "Selected plant material"],
 };
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("The confirmed camera preview could not be loaded."));
+    reader.readAsDataURL(blob);
+  });
+}
 
 export function AnalysisSetupPage() {
   const [params] = useSearchParams();
@@ -53,6 +62,12 @@ function ScheduledAnalysisSetupPage() {
         setConfig(payload.config);
         setDefaultConfig({ ...payload.config });
         setSaved(payload.profile_saved);
+        return getCameraPreview().then(blobToDataUrl);
+      })
+      .then(dataUrl => {
+        if (!dataUrl) return;
+        setFileName("Confirmed camera preview");
+        setImageData(dataUrl);
       })
       .catch(setError);
   }, [navigate]);

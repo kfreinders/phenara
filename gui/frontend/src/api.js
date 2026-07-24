@@ -23,8 +23,35 @@ export async function api(path, options = {}) {
   return response.status === 204 ? null : response.json();
 }
 
+export async function apiBlob(path, options = {}) {
+  const headers = new Headers(options.headers);
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(options.method?.toUpperCase())) {
+    headers.set("X-Phenopi-Request", "1");
+  }
+  const response = await fetch(path, { cache: "no-store", ...options, headers });
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const payload = await response.json();
+      if (typeof payload.detail === "string") message = payload.detail;
+    } catch {}
+    throw new Error(message);
+  }
+  return response.blob();
+}
+
 export const getSchedulerStatus = () => api("/api/scheduler/status");
 export const getSchedulerHealth = () => api("/api/scheduler/health");
+export const getDevelopmentStatus = () => api("/api/development/status");
+export const setDevelopmentMode = enabled => api(
+  "/api/development/status",
+  { method: "PUT", body: JSON.stringify({ enabled }) },
+);
+export const acquireCameraPreview = () => apiBlob(
+  "/api/camera/preview",
+  { method: "POST" },
+);
+export const getCameraPreview = () => apiBlob("/api/camera/preview");
 export const getAnalysisConfig = () => api("/api/analysis/configure");
 export const previewAnalysis = (imageData, config, analysisCrop, maskExclusions, signal) => api(
   "/api/analysis/preview",

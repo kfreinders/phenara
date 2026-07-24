@@ -47,7 +47,9 @@ def test_mutating_api_requests_require_the_browser_request_marker():
     assert status == 403
     assert headers[b"x-content-type-options"] == b"nosniff"
     assert headers[b"x-frame-options"] == b"DENY"
-    assert b"frame-ancestors 'none'" in headers[b"content-security-policy"]
+    policy = headers[b"content-security-policy"]
+    assert b"frame-ancestors 'none'" in policy
+    assert b"img-src 'self' data: blob:" in policy
 
 
 @pytest.mark.parametrize("length", ["invalid", "-1", "1000001"])

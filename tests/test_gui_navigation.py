@@ -44,6 +44,8 @@ def test_camera_alignment_is_a_guarded_schedule_step():
 
     assert 'params.get("workflow") !== "schedule"' in source
     assert 'api("/api/schedule/draft/camera"' in source
+    assert "acquireCameraPreview" in source
+    assert "getUserMedia" not in source
     assert "Confirm alignment" in source
     assert (
         'analysisEnabled ? "/analysis?workflow=schedule" : "/schedule/review"'
@@ -81,8 +83,6 @@ def test_development_capture_controls_are_registered_and_visible():
     assert "Enable development mode" in source
     assert "Development mode on" in source
     assert "Use sample images" in source
-    assert "MSc thesis research project" in source
-    assert "modular, reproducible plant phenotyping platform" in source
 
 
 def test_activation_page_rejects_a_malformed_schedule_hash():

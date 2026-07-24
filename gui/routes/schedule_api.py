@@ -222,6 +222,7 @@ def _review_payload(draft, preview, status: dict) -> dict:
         "analysis_requested": draft.form.analysis_enabled,
         "analysis_ready": draft.schedule.get("analysis") is not None,
         "camera_aligned": draft.camera_aligned,
+        "camera_preview_ready": draft.camera_preview_ready,
         "can_activate": (
             scheduler_responding
             and storage["status"] != "insufficient"

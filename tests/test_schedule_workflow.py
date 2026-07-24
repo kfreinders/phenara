@@ -12,6 +12,7 @@ from gui.services.schedule_drafts import (
     confirm_camera_alignment,
     discard_schedule_draft,
     persist_schedule_draft,
+    record_camera_preview,
 )
 from gui.services.schedule_form import ScheduleFormData
 from scripts.analysis.config import AnalysisConfig
@@ -169,6 +170,9 @@ def test_draft_api_returns_complete_review_payload(tmp_path, monkeypatch):
                 draft_hash=payload["draft"]["schedule_hash"]
             )
         )
+    with pytest.raises(HTTPException, match="preview"):
+        schedule_api.confirm_draft_camera()
+    record_camera_preview(draft_path)
     aligned = schedule_api.confirm_draft_camera()
     assert aligned["camera_aligned"] is True
     assert aligned["can_activate"] is True
@@ -184,6 +188,7 @@ def test_analysis_enabled_draft_requires_calibration_before_activation(
     review = schedule_api.create_schedule_draft(
         schedule_form_data(analysis_enabled=True)
     )
+    record_camera_preview(draft_path)
     schedule_api.confirm_draft_camera()
 
     assert review["analysis_requested"] is True
@@ -306,6 +311,7 @@ def test_finished_schedule_is_not_used_for_draft_comparison(tmp_path, monkeypatc
 def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path, monkeypatch):
     draft_path, _, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    record_camera_preview(draft_path)
     confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, state="running", schedule={
         "hash": draft.schedule_hash,
@@ -324,6 +330,7 @@ def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path
 def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    record_camera_preview(draft_path)
     confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, state="running", schedule={
         "hash": "a" * 64,
@@ -348,6 +355,7 @@ def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path,
 def test_upcoming_schedule_requires_confirmation_before_replacement(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
+    record_camera_preview(draft_path)
     confirm_camera_alignment(draft_path)
     write_heartbeat(heartbeat, schedule={
         "hash": "b" * 64,

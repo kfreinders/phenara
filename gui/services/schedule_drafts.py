@@ -38,6 +38,7 @@ class ScheduleDraft(BaseModel):
     schedule: dict[str, Any]
     schedule_hash: str
     camera_aligned: bool = False
+    camera_preview_ready: bool = False
 
 
 def persist_schedule_draft(
@@ -80,6 +81,9 @@ def persist_schedule_draft(
         schedule=schedule,
         schedule_hash=_schedule_hash(schedule),
         camera_aligned=existing.camera_aligned if existing else False,
+        camera_preview_ready=(
+            existing.camera_preview_ready if existing else False
+        ),
     )
     atomic_write_text(path, draft.model_dump_json(indent=2) + "\n")
     return draft
@@ -136,7 +140,26 @@ def confirm_camera_alignment(
 ) -> ScheduleDraft:
     """Record the mandatory camera-alignment check for one experiment."""
     draft, _ = load_schedule_draft(path)
+    if not draft.camera_preview_ready:
+        raise ValueError(
+            "Acquire a camera preview before confirming alignment."
+        )
     updated = draft.model_copy(update={"camera_aligned": True})
+    atomic_write_text(path, updated.model_dump_json(indent=2) + "\n")
+    return updated
+
+
+def record_camera_preview(
+    path: Path = SCHEDULE_DRAFT_PATH,
+) -> ScheduleDraft:
+    """Record a fresh preview and require its alignment to be confirmed."""
+    draft, _ = load_schedule_draft(path)
+    updated = draft.model_copy(
+        update={
+            "camera_aligned": False,
+            "camera_preview_ready": True,
+        }
+    )
     atomic_write_text(path, updated.model_dump_json(indent=2) + "\n")
     return updated
 

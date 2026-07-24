@@ -54,6 +54,7 @@ body {
   100% { opacity: 0; transform: translate(-50%, 1.65rem) scale(1.1); }
 }
 .topbar p { margin: 0.2rem 0 0; opacity: 0.85; }
+.topbar-status { display: flex; align-items: center; gap: .65rem; }
 .status-pill { display: inline-flex; align-items: center; gap: .45rem; padding: .48rem .7rem; border: 1px solid; border-radius: 999px; white-space: nowrap; font-size: .8rem; text-decoration: none; }
 .status-pill-dot { width: .55rem; height: .55rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 .18rem color-mix(in srgb, currentColor 16%, transparent); }
 .status-pill small { padding-left: .4rem; border-left: 1px solid currentColor; opacity: .72; font-weight: 750; }
@@ -500,6 +501,39 @@ button.secondary {
 
 code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 0.25rem; }
 
+.development-pill,
+.development-pill:hover,
+.development-pill:focus-visible,
+.development-pill:active {
+  min-height: 2rem;
+  padding: .42rem .7rem;
+  border: 1px solid rgb(255 255 255 / 38%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+  box-shadow: none;
+  color: white;
+  filter: none;
+  font-size: .76rem;
+  line-height: 1;
+  transform: none;
+}
+.development-pill::before { content: none; }
+.development-pill:not(:disabled):hover,
+.development-pill:not(:disabled):focus-visible {
+  border-color: rgb(255 255 255 / 68%);
+  background: rgb(255 255 255 / 18%);
+  outline: none;
+}
+.development-pill--enabled,
+.development-pill--enabled:hover,
+.development-pill--enabled:focus-visible {
+  border-color: #fedf89;
+  background: #fffaeb;
+  color: #93370d;
+}
+.development-pill:disabled { cursor: not-allowed; opacity: .7; }
+.development-modal .actions { margin-top: 1.25rem; }
+
 .phenopi-modal-backdrop {
   position: fixed;
   z-index: 1000;
@@ -567,6 +601,7 @@ code { background: #eef2f7; padding: 0.1rem 0.25rem; border-radius: 0.25rem; }
 @media (max-width: 760px) {
   .topbar-inner { align-items: flex-start; flex-direction: column; }
   .phenopi-identity-controls { width: min(15rem, calc(100vw - 2rem)); }
+  .topbar-status { flex-wrap: wrap; }
 }
 
 @media (prefers-reduced-motion: reduce) {

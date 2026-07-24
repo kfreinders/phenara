@@ -24,6 +24,11 @@ def _path(
     )
 
 
+def _executable_path(value: str | Path) -> Path:
+    """Make an interpreter path absolute without dereferencing a venv symlink."""
+    return Path(os.path.abspath(Path(value).expanduser()))
+
+
 @dataclass(frozen=True)
 class PhenopiSettings:
     project_root: Path
@@ -36,6 +41,9 @@ class PhenopiSettings:
     scheduler_heartbeat_path: Path
     scheduler_command_path: Path
     capture_script: Path
+    development_image_dir: Path
+    development_mode_path: Path
+    camera_preview_path: Path
     timezone: ZoneInfo
     gui_host: str
     gui_port: int
@@ -64,9 +72,9 @@ def load_settings(
     )
     configured_python = env.get("PHENOPI_PYTHON")
     python_bin = (
-        Path(configured_python).expanduser().resolve()
+        _executable_path(configured_python)
         if configured_python
-        else Path(sys.executable).resolve()
+        else _executable_path(sys.executable)
     )
     timezone_name = env.get("PHENOPI_TIMEZONE", "Europe/Amsterdam")
     try:
@@ -93,6 +101,13 @@ def load_settings(
         scheduler_heartbeat_path=runtime_dir / "scheduler-heartbeat.json",
         scheduler_command_path=runtime_dir / "scheduler-command.json",
         capture_script=project_root / "scripts" / "capture" / "capture_once.py",
+        development_image_dir=_path(
+            env,
+            "PHENOPI_DEVELOPMENT_IMAGE_DIR",
+            project_root / "development" / "sample-images",
+        ),
+        development_mode_path=runtime_dir / "development-mode.json",
+        camera_preview_path=runtime_dir / "camera-preview.jpg",
         timezone=timezone,
         gui_host=env.get("PHENOPI_GUI_HOST", "0.0.0.0"),
         gui_port=gui_port,
@@ -111,6 +126,9 @@ SCHEDULE_DRAFT_PATH = SETTINGS.schedule_draft_path
 SCHEDULER_HEARTBEAT_PATH = SETTINGS.scheduler_heartbeat_path
 SCHEDULER_COMMAND_PATH = SETTINGS.scheduler_command_path
 CAPTURE_SCRIPT_PATH = SETTINGS.capture_script
+DEVELOPMENT_IMAGE_DIR = SETTINGS.development_image_dir
+DEVELOPMENT_MODE_PATH = SETTINGS.development_mode_path
+CAMERA_PREVIEW_PATH = SETTINGS.camera_preview_path
 TIMEZONE = SETTINGS.timezone
 GUI_HOST = SETTINGS.gui_host
 GUI_PORT = SETTINGS.gui_port
