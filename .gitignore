@@ -1,25 +1,36 @@
-# Python bytecode
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 
-# Runtime files
+# Phenopi runtime/data outputs
 captures/
 runtime/
 results/
-
-# LaTeX output
-main.*
-!main.tex
-*.aux
-/captures_original
 
 # React frontend
 gui/frontend/node_modules/
 gui/react-dist/
 
+# LaTeX output
+docs/*.aux
+docs/*.bbl
+docs/*.bcf
+docs/*.blg
+docs/*.fdb_latexmk
+docs/*.fls
+docs/*.log
+docs/*.out
+docs/*.run.xml
+docs/*.synctex.gz
+docs/*.toc
+docs/*.lof
+docs/*.lot
+docs/*.pdf
+
+# Root-level virtualenv artefacts, if accidentally created
 /bin/
 /include/
 /lib/
-/lib64
+/lib64/
 /pyvenv.cfg
