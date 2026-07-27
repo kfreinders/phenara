@@ -27,9 +27,9 @@ class ScheduleFormData(BaseModel):
     duration_minutes: int = 720
     duration_step_minutes: int = 30
     centered_center: str = "12:00"
-    centered_before_minutes: int = 60
-    centered_after_minutes: int = 60
-    centered_step_minutes: int = 15
+    centered_before_minutes: int = 120
+    centered_after_minutes: int = 120
+    centered_step_minutes: int = 30
 
     def preview_arguments(self) -> dict[str, Any]:
         return self.model_dump(
@@ -87,7 +87,7 @@ def form_defaults() -> dict[str, Any]:
         "duration_minutes": 720,
         "duration_step_minutes": 30,
         "centered_center": "12:00",
-        "centered_before_minutes": 60,
-        "centered_after_minutes": 60,
-        "centered_step_minutes": 15,
+        "centered_before_minutes": 120,
+        "centered_after_minutes": 120,
+        "centered_step_minutes": 30,
     }

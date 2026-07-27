@@ -151,6 +151,9 @@ def test_schedule_form_data_parses_checkbox_and_supplies_mode_defaults():
     assert form.researcher is None
     assert form.every_end == "19:30"
     assert form.preview_arguments()["every_step_minutes"] == 30
+    assert form.centered_before_minutes == 120
+    assert form.centered_after_minutes == 120
+    assert form.centered_step_minutes == 30
 
 
 def test_schedule_draft_round_trip_and_activation(tmp_path):

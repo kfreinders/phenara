@@ -8,6 +8,7 @@ import { ActivationPage } from "./pages/ActivationPage";
 import { CameraPage } from "./pages/CameraPage";
 import { ExperimentDownloadPage } from "./pages/ExperimentDownloadPage";
 import { AnalysisSetupPage } from "./pages/AnalysisSetupPage";
+import { CaptureModePage } from "./pages/CaptureModePage";
 
 const healthLabels = {
   healthy: "Healthy", waiting_for_schedule: "Waiting for schedule",
@@ -57,7 +58,8 @@ function Shell() {
         <button ref={contactClose} className="phenopi-modal-close" type="button" aria-label="Close developer information" onClick={() => setContactOpen(false)}>×</button>
         <span className="phenopi-modal-eyebrow">Phenopi</span>
         <h2 id="phenopi-modal-title">Koen Reinders</h2>
-        <p>Developer and project contact</p>
+        <p className="phenopi-modal-role">Developer and MSc researcher</p>
+        <p className="phenopi-modal-summary">Phenopi is my MSc thesis research project for developing a modular, reproducible plant phenotyping platform. It schedules repeat image capture, supports camera alignment and calibrated canopy analysis, and tracks and exports experiment results.</p>
         <div className="phenopi-modal-links">
           <a href="mailto:koenf.reinders@gmail.com"><span>Email</span><strong>koenf.reinders@gmail.com</strong></a>
           <a href="https://github.com/kfreinders/phenopi" target="_blank" rel="noreferrer"><span>GitHub</span><strong>kfreinders/phenopi</strong></a>
@@ -71,8 +73,10 @@ export default function App() {
   return <Routes><Route element={<Shell />}>
     <Route index element={<Navigate to="/scheduler" replace />} />
     <Route path="scheduler" element={<SchedulerPage />} />
-    <Route path="schedule" element={<ScheduleBuilderPage />} />
-    <Route path="schedule/edit" element={<ScheduleBuilderPage edit />} />
+    <Route path="schedule" element={<CaptureModePage />} />
+    <Route path="schedule/edit" element={<CaptureModePage edit />} />
+    <Route path="schedule/build" element={<ScheduleBuilderPage />} />
+    <Route path="schedule/build/edit" element={<ScheduleBuilderPage edit />} />
     <Route path="schedule/review" element={<ScheduleReviewPage />} />
     <Route path="schedule/activation" element={<ActivationPage />} />
     <Route path="camera" element={<CameraPage />} />

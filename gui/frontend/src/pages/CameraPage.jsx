@@ -81,8 +81,8 @@ function ExperimentCameraAlignment() {
   const next = analysisEnabled ? "/analysis?workflow=schedule" : "/schedule/review";
 
   return <section className="camera-page">
-    <WorkflowSteps current={2} analysisEnabled={analysisEnabled} />
-    <header className="camera-heading"><div><h2>Align the camera</h2><p>Check the complete tray is framed consistently before starting this experiment.</p></div><Link className="button-link secondary" to="/schedule/edit"><span aria-hidden="true">←</span> Back to configure</Link></header>
+    <WorkflowSteps current={3} analysisEnabled={analysisEnabled} />
+    <header className="camera-heading"><div><h2>Align the camera</h2><p>Acquire a still from the Phenopi camera and verify the complete tray is framed consistently.</p></div><Link className="button-link secondary" to="/schedule/build/edit"><span aria-hidden="true">←</span> Back to schedule</Link></header>
     <ErrorNotice error={error} />
     <div className="camera-layout">
       <section className="camera-preview-card card">

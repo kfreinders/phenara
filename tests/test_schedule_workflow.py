@@ -86,24 +86,38 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
     configure_paths(monkeypatch, tmp_path)
     payload = schedule_api.configure_schedule()
     source = (FRONTEND / "pages" / "ScheduleBuilderPage.jsx").read_text()
+    capture_mode = (FRONTEND / "pages" / "CaptureModePage.jsx").read_text()
 
     assert payload["form"]["replicates"] == 1
     assert payload["form"]["replicate_interval_seconds"] == 0
     assert payload["form"]["analysis_enabled"] is False
     assert payload["minimum_start_date"] == date.today().isoformat()
     assert "Continue to camera alignment" in source
+    assert "<CameraModeIcon />" in capture_mode
+    assert "<AnalyzeModeIcon />" in capture_mode
+    assert "Images only" not in source
+    assert "Analyze canopy" not in source
     assert 'max="365"' in source
     assert "replicate-interval-control" in source
-    assert "Start date (YYYY/MM/DD)" in source
+    assert 'label="Start date"' in source
+    assert "YYYY-MM-DD" in source
     assert 'label="Start time"' in source
     assert "(24h)" not in source
-    assert 'type="date"' not in source
+    assert 'type="date"' in source
     assert 'type="time"' not in source
+    assert "Open graphical date picker" in source
+    assert "Increase ${label.toLowerCase()} by one minute" in source
+    assert "Decrease ${label.toLowerCase()} by one minute" in source
     assert source.index("<legend>Experiment</legend>") < source.index("<legend>Schedule mode</legend>")
     assert source.count("<legend>Schedule mode</legend>") == 1
     assert "<legend>Every n minutes</legend>" not in source
     assert "<legend>Fixed duration</legend>" not in source
     assert "<legend>Centered window</legend>" not in source
+    assert "<HelpTip" in source
+    assert "Capture from the start time through the end time" in source
+    assert "Capture from the start time for the chosen duration" in source
+    assert "Create a window before and after a center time" in source
+    assert "<ScheduleWindowPreview form={form} />" in source
 
 
 def test_configure_api_discards_an_expired_draft(tmp_path, monkeypatch):
@@ -372,30 +386,59 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     scheduler = (FRONTEND / "pages" / "SchedulerPage.jsx").read_text()
     components = (FRONTEND / "components.jsx").read_text()
     builder = (FRONTEND / "pages" / "ScheduleBuilderPage.jsx").read_text()
+    capture_mode = (FRONTEND / "pages" / "CaptureModePage.jsx").read_text()
     review = (FRONTEND / "pages" / "ScheduleReviewPage.jsx").read_text()
     analysis = (FRONTEND / "pages" / "AnalysisSetupPage.jsx").read_text()
     assert "ScheduleBuilderPage" in app_source
+    assert "CaptureModePage" in app_source
     assert "ScheduleReviewPage" in app_source
     assert "ActivationPage" in app_source
-    assert "Canopy measurements" in builder
-    assert "Images only" in builder
-    assert "Analyze canopy" in builder
+    assert "Choose capture mode" in capture_mode
+    assert "Images only" in capture_mode
+    assert "Analyze canopy" in capture_mode
+    assert "Continue to schedule" in capture_mode
+    assert "Images only" not in builder
+    assert "Analyze canopy" not in builder
     assert "Continue to camera alignment" in builder
     assert 'navigate("/camera?workflow=schedule")' in builder
     assert "Canopy calibration required" in review
     assert "Calibrate analysis" in review
     assert "Use this calibration" in analysis
     assert "Save and continue to review" in analysis
-    assert "Back to configure" in analysis
+    assert "Back to schedule" in analysis
     assert 'params.get("workflow") !== "schedule"' in analysis
     assert '<Navigate to="/schedule" replace />' in analysis
     assert "workflow_available" in analysis
-    assert 'to="/schedule/edit"' in analysis
-    assert "These controls determine which pixels remain white" in analysis
+    assert 'to="/schedule/build/edit"' in analysis
+    assert "The plant mask is a black-and-white image" in analysis
+    assert 'id="analysis-help-image"' not in analysis
+    assert 'id="analysis-help-orientation"' not in analysis
+    assert 'id="analysis-help-channel"' not in analysis
+    assert 'id="analysis-help-mask"' not in analysis
+    assert 'id="analysis-help-roi"' not in analysis
+    assert 'aria-label={`${label} exact value`}' in analysis
+    assert 'id="analysis-help-setting-channel"' in analysis
+    assert "White pixels are treated as plant" in analysis
+    assert "black pixels are treated as background" in analysis
+    assert "IntersectionObserver" in analysis
+    assert 'data-control-group="orientation"' in analysis
+    assert "Controls this preview" not in analysis
+    assert "ROI grid has not been detected" in analysis
+    assert "Restore defaults" in analysis
+    assert "setConfig({ ...defaultConfig })" in analysis
+    assert 'id="analysis-help-setting-rows"' in analysis
+    assert 'id="analysis-help-setting-columns"' in analysis
+    assert 'id="analysis-help-setting-detect"' in analysis
+    assert "analysis-control-group-note" not in analysis
+    assert "analysis-roi-note" not in analysis
     assert "scrollIntoView" in analysis
     assert "prefers-reduced-motion" in analysis
+    assert 'if (key === "rotate_angle") {\\n      setAnalysisCrop' not in analysis
     assert '"Calibrate"' in components
     assert '"Align camera"' in components
+    assert '"Capture mode"' in components
+    assert '"Schedule"' in components
+    assert '"Confirmed"' not in components
     assert "schedule?.hash === expected" in activation
     assert "setCountdown(5)" in activation
     assert "Create another schedule" not in activation

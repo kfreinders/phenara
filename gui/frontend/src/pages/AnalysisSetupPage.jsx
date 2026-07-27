@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { ErrorNotice, Loading, WorkflowSteps } from "../components";
-import { attachDraftAnalysis, detectAnalysisRoi, getAnalysisConfig, previewAnalysis, saveAnalysisProfile } from "../api";
+import { ErrorNotice, HelpTip, Loading, WorkflowSteps } from "../components";
+import { attachDraftAnalysis, detectAnalysisRoi, getAnalysisConfig, getCameraPreview, previewAnalysis, saveAnalysisProfile } from "../api";
 
 const stageLabels = {
   channel: ["LAB channel", "Values used for thresholding"],
@@ -21,6 +21,7 @@ function ScheduledAnalysisSetupPage() {
   const navigate = useNavigate();
   const scheduleWorkflow = true;
   const [config, setConfig] = useState(null);
+  const [defaultConfig, setDefaultConfig] = useState(null);
   const [imageData, setImageData] = useState(null);
   const [fileName, setFileName] = useState("");
   const [stages, setStages] = useState(null);
@@ -33,8 +34,10 @@ function ScheduledAnalysisSetupPage() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [activeControl, setActiveControl] = useState(null);
   const requestNumber = useRef(0);
   const roiResult = useRef(null);
+  const previewArea = useRef(null);
 
   useEffect(() => {
     getAnalysisConfig()
@@ -48,6 +51,7 @@ function ScheduledAnalysisSetupPage() {
           return;
         }
         setConfig(payload.config);
+        setDefaultConfig({ ...payload.config });
         setSaved(payload.profile_saved);
       })
       .catch(setError);
@@ -87,6 +91,23 @@ function ScheduledAnalysisSetupPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [roi]);
 
+  useEffect(() => {
+    const cards = previewArea.current?.querySelectorAll("[data-control-group]");
+    if (!cards?.length) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setActiveControl(cards[0].dataset.controlGroup);
+      return undefined;
+    }
+    const visibility = new Map();
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => visibility.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0));
+      const visible = [...visibility.entries()].sort((left, right) => right[1] - left[1])[0];
+      if (visible?.[1] > 0) setActiveControl(visible[0].dataset.controlGroup);
+    }, { rootMargin: "-15% 0px -45% 0px", threshold: [0, .1, .25, .5, .75] });
+    cards.forEach(card => { visibility.set(card, 0); observer.observe(card); });
+    return () => observer.disconnect();
+  }, [stages, roi]);
+
   const selectImage = event => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -117,7 +138,6 @@ function ScheduledAnalysisSetupPage() {
     setRoi(null);
     setSaved(false);
     if (key === "rotate_angle") {
-      setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
       setMaskExclusions([]);
     }
     setConfig(current => ({ ...current, [key]: value }));
@@ -132,6 +152,14 @@ function ScheduledAnalysisSetupPage() {
     setRoi(null);
     setSaved(false);
     setMaskExclusions(updater);
+  };
+  const restoreDefaults = () => {
+    if (!defaultConfig) return;
+    setConfig({ ...defaultConfig });
+    setMaskExclusions([]);
+    setRoi(null);
+    setSaved(false);
+    setError(null);
   };
   const detectRoi = async () => {
     setDetectingRoi(true);
@@ -174,79 +202,76 @@ function ScheduledAnalysisSetupPage() {
     }
   };
   if (!config) return <Loading label="Loading analysis settings" />;
+  const defaultsChanged = Boolean(defaultConfig) && (JSON.stringify(config) !== JSON.stringify(defaultConfig) || maskExclusions.length > 0);
 
   return <section className="analysis-page">
-    {scheduleWorkflow && <WorkflowSteps current={3} analysisEnabled />}
-    <header className="react-page-heading analysis-page-heading"><div><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></div>{scheduleWorkflow && <Link className="button-link secondary" to="/schedule/edit"><span aria-hidden="true">←</span> Back to configure</Link>}</header>
+    {scheduleWorkflow && <WorkflowSteps current={4} analysisEnabled />}
+    <header className="react-page-heading analysis-page-heading"><div><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></div>{scheduleWorkflow && <Link className="button-link secondary" to="/schedule/build/edit"><span aria-hidden="true">←</span> Back to schedule</Link>}</header>
     <ErrorNotice error={error} />
-    {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "3"}</span><div><h3>{saved ? "This experiment is calibrated" : "Calibration required"}</h3><p>{saved ? "Continue with the calibration already saved for this experiment, or replace it below after changing the camera or tray setup." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Loading…" : "Use this calibration"}</button>}</section>}
+    {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "4"}</span><div><h3>{saved ? "This experiment is calibrated" : "Calibration required"}</h3><p>{saved ? "Continue with the calibration already saved for this experiment, or replace it below after changing the camera or tray setup." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Loading…" : "Use this calibration"}</button>}</section>}
     <div className="analysis-setup-layout">
       <aside className="card analysis-controls">
+        <div className="analysis-controls-actions"><button type="button" className="secondary analysis-restore-defaults" disabled={!defaultsChanged} onClick={restoreDefaults}>Restore defaults</button></div>
         <div className="analysis-image-picker">
           <strong>Calibration image</strong>
-          <p>Use an image with the same lighting, camera position and plants as the experiment.</p>
           <label className="button-link secondary analysis-file-button">
             {fileName ? "Choose another image" : "Choose image"}
             <input type="file" accept="image/jpeg,image/png" onChange={selectImage} />
           </label>
           {fileName && <small title={fileName}>{fileName}</small>}
         </div>
-        <fieldset disabled={!imageData}>
+        <fieldset className={`analysis-control-group${activeControl === "orientation" ? " is-active" : ""}`} disabled={!imageData}>
           <legend>Image orientation</legend>
-          <p className="analysis-control-group-note">Rotation is applied before cropping or segmentation and updates every preview.</p>
-          <RangeControl label="Rotation" value={config.rotate_angle} min={-10} max={10} step={0.1} suffix="°" onChange={value => update("rotate_angle", value)} />
+          <RangeControl label="Rotation" help="Straighten a tilted tray before cropping and segmentation. Positive and negative values rotate the image in opposite directions." value={config.rotate_angle} min={-10} max={10} step={0.1} suffix="°" onChange={value => update("rotate_angle", value)} />
         </fieldset>
-        <fieldset disabled={!imageData}>
+        <fieldset className={`analysis-control-group${activeControl === "channel" ? " is-active" : ""}`} disabled={!imageData}>
           <legend>LAB channel</legend>
-          <p className="analysis-control-group-note">Choose the color component shown in the <strong>LAB channel</strong> preview. This becomes the input for thresholding.</p>
-          <label className="analysis-control"><span>Channel <output>{config.sepchannel.toUpperCase()}</output></span>
+          <label className="analysis-control"><span><span className="analysis-setting-label">Channel <HelpTip id="analysis-help-setting-channel" label="channel setting">LAB separates an image into lightness (L), green-to-magenta color (A), and blue-to-yellow color (B). Choose the channel where plants contrast most clearly with the background, then check the result in the Plant mask preview. White pixels are treated as plant; black pixels are treated as background.</HelpTip></span><output>{config.sepchannel.toUpperCase()}</output></span>
             <select value={config.sepchannel} onChange={event => update("sepchannel", event.target.value)}>
               <option value="l">L — lightness</option><option value="a">A — green to magenta</option><option value="b">B — blue to yellow</option>
             </select>
           </label>
         </fieldset>
-        <fieldset disabled={!imageData}>
+        <fieldset className={`analysis-control-group${activeControl === "mask" ? " is-active" : ""}`} disabled={!imageData}>
           <legend>Plant mask</legend>
-          <p className="analysis-control-group-note">These controls determine which pixels remain white in the <strong>Plant mask</strong> preview.</p>
-          <RangeControl label="Threshold" value={config.threshold} min={0} max={255} onChange={value => update("threshold", value)} />
-          <RangeControl label="Remove small regions" value={config.fill_size} min={0} max={2000} step={10} onChange={value => update("fill_size", value)} />
+          <RangeControl label="Threshold" help="The plant mask is a black-and-white image used to separate plants from their surroundings. Pixels at or below this 0–255 cutoff become white plant pixels; higher-valued pixels become black background." value={config.threshold} min={0} max={255} onChange={value => update("threshold", value)} />
+          <RangeControl label="Remove small regions" help="Remove isolated white areas smaller than this many pixels. Increase it to suppress small specks of noise, but avoid values that erase small leaves." value={config.fill_size} min={0} max={2000} step={10} onChange={value => update("fill_size", value)} />
         </fieldset>
-        <fieldset disabled={!imageData}>
+        <fieldset className={`analysis-control-group${activeControl === "roi" ? " is-active" : ""}`} disabled={!imageData}>
           <legend>ROI grid</legend>
-          <p className="analysis-control-group-note">Set the tray layout, then detect plant regions from the edited mask. Draw the analysis area around the tray first.</p>
           <div className="analysis-grid-size">
-            <label>Rows<input type="number" min="1" max="30" value={config.roi_rows} onChange={event => update("roi_rows", Number(event.target.value))} /></label>
-            <label>Columns<input type="number" min="1" max="30" value={config.roi_cols} onChange={event => update("roi_cols", Number(event.target.value))} /></label>
+            <label><span className="analysis-setting-label">Rows <HelpTip id="analysis-help-setting-rows" label="ROI rows">Enter how many horizontal rows of pots or plants are present inside the selected analysis area.</HelpTip></span><input type="number" min="1" max="30" value={config.roi_rows} onChange={event => update("roi_rows", Number(event.target.value))} /></label>
+            <label><span className="analysis-setting-label">Columns <HelpTip id="analysis-help-setting-columns" label="ROI columns">Enter how many vertical columns of pots or plants are present inside the selected analysis area.</HelpTip></span><input type="number" min="1" max="30" value={config.roi_cols} onChange={event => update("roi_cols", Number(event.target.value))} /></label>
           </div>
-          <button type="button" className="analysis-detect-button" onClick={detectRoi} disabled={detectingRoi}>{detectingRoi ? "Detecting ROI grid…" : roi ? "Detect ROI grid again" : "Detect ROI grid"}</button>
-          <p className="analysis-roi-note">PlantCV performs this slower detection once. The resulting grid is reused for every image in the experiment.</p>
+          <div className="analysis-detect-action"><button type="button" className="analysis-detect-button" onClick={detectRoi} disabled={detectingRoi}>{detectingRoi ? "Detecting ROI grid…" : roi ? "Detect ROI grid again" : "Detect ROI grid"}</button><HelpTip id="analysis-help-setting-detect" label="ROI grid detection">Find one reusable measurement region for each expected row-and-column position using the current plant mask.</HelpTip></div>
         </fieldset>
       </aside>
-      <section className={`analysis-preview-area${loading ? " is-updating" : ""}`} aria-live="polite">
+      <section ref={previewArea} className={`analysis-preview-area${loading ? " is-updating" : ""}`} aria-live="polite">
         {!imageData && <div className="card analysis-empty"><span aria-hidden="true">◫</span><h3>Select a calibration image</h3><p>The segmentation stages will appear here as you adjust the controls.</p></div>}
         {imageData && !stages && <Loading label="Generating analysis preview" />}
         {stages && <div className="analysis-stage-grid">
-          <article className="card analysis-stage analysis-stage--crop">
+          <article className="card analysis-stage analysis-stage--crop" data-control-group="orientation">
             <header><div><h3>Analysis area</h3><p>Drag across the image to isolate the tray</p></div><button type="button" className="text-button analysis-crop-reset" onClick={() => updateCrop({ x: 0, y: 0, width: 1, height: 1 })}>Reset</button></header>
             <CropSelector image={stages.original} crop={analysisCrop} onChange={updateCrop} />
           </article>
-          {Object.entries(stageLabels).map(([key, [title, description]]) => <article className="card analysis-stage" key={key}>
+          {Object.entries(stageLabels).map(([key, [title, description]]) => <article className="card analysis-stage" data-control-group={key === "channel" ? "channel" : "mask"} key={key}>
             <header><div><h3>{title}</h3><p>{description}</p></div>{loading && key === "overlay" && <span className="analysis-updating">Updating…</span>}</header>
             {key === "mask" ? <MaskEditor image={stages.mask} strokes={maskExclusions} setStrokes={updateMaskExclusions} radius={brushRadius} setRadius={setBrushRadius} /> : <div className="analysis-stage-image"><img src={stages[key]} alt={`${title} analysis preview`} /></div>}
           </article>)}
-          {roi && <article ref={roiResult} className="card analysis-stage analysis-stage--roi" tabIndex="-1">
-            <header><div><h3>Automatic ROI grid</h3><p>{roi.definition.rows} × {roi.definition.columns} reusable regions</p></div><span className="analysis-roi-ready">Detected</span></header>
-            <div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
-            <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>This calibration will be stored only with this experiment.</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : scheduleWorkflow ? "Save and continue to review" : "Save analysis setup"}</button></footer>
-          </article>}
+          <article ref={roiResult} className="card analysis-stage analysis-stage--roi" data-control-group="roi" tabIndex="-1">
+            <header><div><h3>Automatic ROI grid</h3><p>{roi ? `${roi.definition.rows} × ${roi.definition.columns} reusable regions` : "Detect reusable plant measurement regions"}</p></div><span className={roi ? "analysis-roi-ready" : "analysis-roi-waiting"}>{roi ? "Detected" : "Not detected"}</span></header>
+            {roi ? <><div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
+              <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>This calibration will be stored only with this experiment.</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : scheduleWorkflow ? "Save and continue to review" : "Save analysis setup"}</button></footer></> : <div className="analysis-roi-placeholder" aria-label="ROI grid has not been detected"><span className="analysis-roi-placeholder-grid" aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <i key={index} />)}</span><p>Set the tray rows and columns, then select <strong>Detect ROI grid</strong>.</p></div>}
+          </article>
         </div>}
       </section>
     </div>
   </section>;
 }
 
-function RangeControl({ label, value, min, max, step = 1, suffix = "", onChange }) {
-  return <label className="analysis-control"><span>{label}<output>{value}{suffix}</output></span>
+function RangeControl({ label, help, value, min, max, step = 1, suffix = "", onChange }) {
+  const helpId = `analysis-help-setting-${label.toLowerCase().replaceAll(" ", "-")}`;
+  return <label className="analysis-control"><span><span className="analysis-setting-label">{label} <HelpTip id={helpId} label={`${label} setting`}>{help}</HelpTip></span><span className="analysis-control-value-wrap"><input className="analysis-control-value" type="number" value={value} min={min} max={max} step={step} aria-label={`${label} exact value`} onChange={event => { if (event.target.value !== "") onChange(Number(event.target.value)); }} />{suffix && <small>{suffix}</small>}</span></span>
     <input type="range" value={value} min={min} max={max} step={step} onChange={event => onChange(Number(event.target.value))} />
   </label>;
 }

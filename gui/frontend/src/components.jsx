@@ -1,7 +1,32 @@
+import { useEffect, useRef, useState } from "react";
+
+export function HelpTip({ id, label, children }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOutside = event => { if (!root.current?.contains(event.target)) setOpen(false); };
+    const closeOnEscape = event => { if (event.key === "Escape") { setOpen(false); root.current?.querySelector('[role="button"]')?.focus(); } };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeOnEscape); };
+  }, [open]);
+  const toggleWithKeyboard = event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setOpen(current => !current);
+    }
+  };
+  return <span className={`mode-help${open ? " is-open" : ""}`} ref={root} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+    <span className="mode-help-trigger" role="button" tabIndex="0" aria-label={`Explain ${label}`} aria-expanded={open} aria-describedby={id} onClick={() => setOpen(current => !current)} onKeyDown={toggleWithKeyboard}>(?)</span>
+    <span className="mode-help-tooltip" id={id} role="tooltip">{children}</span>
+  </span>;
+}
+
 export function WorkflowSteps({ current, analysisEnabled = false }) {
   const steps = analysisEnabled
-    ? ["Configure", "Align camera", "Calibrate", "Review", "Activate", "Confirmed"]
-    : ["Configure", "Align camera", "Review", "Activate", "Confirmed"];
+    ? ["Capture mode", "Schedule", "Align camera", "Calibrate", "Review", "Activate"]
+    : ["Capture mode", "Schedule", "Align camera", "Review", "Activate"];
   return <ol className="workflow-steps" style={{ "--workflow-step-count": steps.length }} aria-label="Schedule activation progress">
     {steps.map((label, index) => {
       const number = index + 1;
