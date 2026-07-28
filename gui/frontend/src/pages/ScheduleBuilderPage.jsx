@@ -9,9 +9,29 @@ const modeOptions = [
   ["duration", "Fixed duration", "Capture from the start time for the chosen duration at a regular interval. The final boundary is included only when it falls exactly on an interval."],
   ["centered", "Centered window", "Create a window before and after a center time. Captures are stepped from the start of that window, so the center is included only when it falls on an interval."],
 ];
+const scheduleDefaults = {
+  mode: "every",
+  experiment_name: "",
+  researcher: "",
+  notes: "",
+  analysis_enabled: false,
+  num_days: 14,
+  replicates: 1,
+  replicate_interval_seconds: 0,
+  every_start: "08:00",
+  every_end: "19:30",
+  every_step_minutes: 30,
+  duration_start: "08:00",
+  duration_minutes: 720,
+  duration_step_minutes: 30,
+  centered_center: "12:00",
+  centered_before_minutes: 120,
+  centered_after_minutes: 120,
+  centered_step_minutes: 30,
+};
 
 export function ScheduleBuilderPage({ edit = false }) {
-  const navigate = useNavigate(); const [params] = useSearchParams(); const [form, setForm] = useState(null); const [minimum, setMinimum] = useState(""); const [error, setError] = useState(null); const [saving, setSaving] = useState(false);
+  const navigate = useNavigate(); const [params] = useSearchParams(); const [form, setForm] = useState(null); const [defaults, setDefaults] = useState(null); const [minimum, setMinimum] = useState(""); const [error, setError] = useState(null); const [saving, setSaving] = useState(false);
   useEffect(() => {
     const analysisChoice = params.get("analysis");
     if (!edit && !["0", "1"].includes(analysisChoice)) { navigate("/schedule", { replace: true }); return; }
@@ -19,7 +39,14 @@ export function ScheduleBuilderPage({ edit = false }) {
       if (!edit && data.draft_state === "ready") navigate("/schedule/review", { replace: true });
       else {
         const analysis_enabled = ["0", "1"].includes(analysisChoice) ? analysisChoice === "1" : data.form.analysis_enabled;
-        setForm({ ...data.form, analysis_enabled }); setMinimum(data.minimum_start_date);
+        setForm({ ...data.form, analysis_enabled });
+        setDefaults({
+          ...scheduleDefaults,
+          ...data.defaults,
+          analysis_enabled,
+          start_date: data.minimum_start_date,
+        });
+        setMinimum(data.minimum_start_date);
       }
     }).catch(setError);
   }, [edit, navigate, params]);
@@ -32,8 +59,12 @@ export function ScheduleBuilderPage({ edit = false }) {
       return changed;
     });
   };
+  const resetDefaults = () => {
+    setForm(current => resetScheduleForm(current, defaults, minimum));
+    setError(null);
+  };
   const submit = async event => { event.preventDefault(); setError(null); if (minimum && form.start_date < minimum) { setError(new Error("Start date cannot be in the past.")); return; } setSaving(true); try { await api("/api/schedule/draft", { method: "POST", body: JSON.stringify(form) }); navigate("/camera?workflow=schedule"); } catch (reason) { setError(reason); } finally { setSaving(false); } };
-  return <><WorkflowSteps current={2} analysisEnabled={form?.analysis_enabled} /><section className="card"><div className="card-header"><div><h2>Schedule builder</h2><p>Step 2: configure when Phenopi should capture images.</p></div><Link className="button-link secondary" to={edit ? "/schedule/edit" : "/schedule"}><span aria-hidden="true">←</span> Back to capture mode</Link></div><ErrorNotice error={error} />{form && <form className="schedule-form" onSubmit={submit}>
+  return <><WorkflowSteps current={2} analysisEnabled={form?.analysis_enabled} /><section className="card schedule-builder-card"><div className="card-header"><div><h2>Schedule builder</h2><p>Step 2: configure when Phenopi should capture images.</p></div><div className="schedule-builder-header-actions"><button className="secondary" type="button" disabled={!defaults || JSON.stringify(form) === JSON.stringify(defaults)} onClick={resetDefaults}>Reset defaults</button><Link className="button-link secondary" to={edit ? "/schedule/edit" : "/schedule"}><span aria-hidden="true">←</span> Back to capture mode</Link></div></div><ErrorNotice error={error} />{form && <form className="schedule-form" onSubmit={submit}>
     <fieldset><legend>Experiment</legend><div className="grid experiment-details"><TextField label="Experiment name" name="experiment_name" value={form.experiment_name} onChange={update} required maxLength={80} /><TextField label="Researcher" optional name="researcher" value={form.researcher ?? ""} onChange={update} maxLength={80} /></div><label><span className="field-label">Notes <span className="optional">Optional</span></span><textarea name="notes" maxLength="1000" rows="3" value={form.notes ?? ""} onChange={update} /></label>
       <div className="grid schedule-timing-fields"><DateField label="Start date" name="start_date" value={form.start_date} minimum={minimum} onChange={update} /><Field label="Number of days" type="number" name="num_days" value={form.num_days} min="1" max="365" onChange={update} /><Field label="Replicates" type="number" name="replicates" value={form.replicates} min="1" max="100" onChange={update} /><label className={`replicate-interval-control${form.replicates <= 1 ? " is-inactive" : ""}`}>Replicate interval (s)<input type="number" name="replicate_interval_seconds" min="0" max="86400" value={form.replicate_interval_seconds} readOnly={form.replicates <= 1} aria-disabled={form.replicates <= 1} onChange={update} required /></label></div></fieldset>
     <fieldset><legend>Schedule mode</legend><div className="radio-row">{modeOptions.map(([value, label, help]) => <div className="mode-option" key={value}><label><input type="radio" name="mode" value={value} checked={form.mode === value} onChange={update} /> {label}</label><HelpTip label={`${label} mode`} id={`mode-help-${value}`}>{help}</HelpTip></div>)}</div>
@@ -44,6 +75,17 @@ export function ScheduleBuilderPage({ edit = false }) {
     </fieldset>
     <div className="actions"><button type="submit" disabled={saving}>{saving ? "Saving experiment…" : "Continue to camera alignment"}</button></div>
   </form>}</section></>;
+}
+
+export function resetScheduleForm(current, defaults, currentDate = "") {
+  if (!defaults) return current;
+  return {
+    ...current,
+    ...scheduleDefaults,
+    ...defaults,
+    analysis_enabled: current.analysis_enabled,
+    start_date: currentDate || defaults.start_date || current.start_date,
+  };
 }
 
 function ScheduleWindowPreview({ form }) {

@@ -1,6 +1,53 @@
 import { describe, expect, it } from "vitest";
 
-import { buildModePreview } from "./ScheduleBuilderPage";
+import { buildModePreview, resetScheduleForm } from "./ScheduleBuilderPage";
+
+describe("resetScheduleForm", () => {
+  it("restores schedule defaults while preserving the analysis workflow choice", () => {
+    const defaults = {
+      experiment_name: "",
+      analysis_enabled: false,
+      start_date: "",
+      num_days: 14,
+      mode: "every",
+    };
+    const current = {
+      experiment_name: "Changed experiment",
+      analysis_enabled: true,
+      start_date: "2026-08-10",
+      num_days: 3,
+      mode: "duration",
+    };
+
+    expect(resetScheduleForm(current, defaults, "2026-07-28")).toMatchObject({
+      ...defaults,
+      analysis_enabled: true,
+      start_date: "2026-07-28",
+    });
+  });
+
+  it("does not drop fields when an older backend omits defaults", () => {
+    const current = {
+      experiment_name: "Changed experiment",
+      researcher: "Researcher",
+      analysis_enabled: false,
+      start_date: "2026-08-10",
+      num_days: 3,
+      future_field: "preserved",
+    };
+
+    const reset = resetScheduleForm(
+      current,
+      { analysis_enabled: false },
+      "2026-07-28",
+    );
+
+    expect(reset.start_date).toBe("2026-07-28");
+    expect(reset.num_days).toBe(14);
+    expect(reset.every_start).toBe("08:00");
+    expect(reset.future_field).toBe("preserved");
+  });
+});
 
 describe("buildModePreview", () => {
   it("builds an every-n-minutes window without forcing a non-aligned endpoint", () => {

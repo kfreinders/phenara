@@ -92,7 +92,9 @@ def test_configure_api_and_react_form_expose_safe_defaults(tmp_path, monkeypatch
     assert payload["form"]["replicates"] == 1
     assert payload["form"]["replicate_interval_seconds"] == 0
     assert payload["form"]["analysis_enabled"] is False
+    assert payload["defaults"] == payload["form"]
     assert payload["minimum_start_date"] == date.today().isoformat()
+    assert "Reset defaults" in source
     assert "Continue to camera alignment" in source
     assert "<CameraModeIcon />" in capture_mode
     assert "<AnalyzeModeIcon />" in capture_mode

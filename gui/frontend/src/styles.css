@@ -36,6 +36,7 @@
 .capture-mode-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .capture-mode-footer p { margin: 0; font-size: .86rem; }
 .capture-mode-footer button { flex: 0 0 auto; }
+.schedule-builder-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: .65rem; flex-wrap: wrap; }
 .react-form-error { margin-top: 1rem; }
 .activity-hours { min-height: 4.3rem; }
 .stop-experiment { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin: 0; border-color: #fecdca; background: #fffafa; }
@@ -191,6 +192,8 @@
   .analysis-progress-summary { justify-items: start; }
   .capture-mode-footer { align-items: stretch; flex-direction: column; }
   .capture-mode-footer button { width: 100%; }
+  .schedule-builder-card > .card-header { flex-direction: column; }
+  .schedule-builder-header-actions { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .analysis-control-group { transition: none; }
