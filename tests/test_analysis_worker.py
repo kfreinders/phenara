@@ -111,6 +111,9 @@ def test_worker_analyzes_one_pending_capture(tmp_path, monkeypatch):
 
     state = {}
     poll_analysis_queue(config, archive, [run_time], state)
+    for future in state["_futures"]:
+        future.result(timeout=1)
+    poll_analysis_queue(config, archive, [run_time], state)
 
     assert called["command"][:3] == [
         "/venv/bin/python",
@@ -120,6 +123,60 @@ def test_worker_analyzes_one_pending_capture(tmp_path, monkeypatch):
     assert called["kwargs"]["check"] is True
     assert state["succeeded"] == 1
     assert AnalysisQueue(archive.analysis_dir).pending(archive.events()) == []
+
+
+def test_worker_dispatches_multiple_pending_captures_concurrently(
+    tmp_path,
+    monkeypatch,
+):
+    run_times = [
+        datetime.now(timezone.utc) - timedelta(minutes=6),
+        datetime.now(timezone.utc) - timedelta(minutes=5),
+    ]
+    archive = RunArchive(
+        tmp_path / "captures",
+        schedule(),
+        "b" * 64,
+        run_times,
+    )
+    for run_time in run_times:
+        image_path = archive.capture_path(run_time)
+        image_path.touch()
+        archive.record(
+            scheduled_at=run_time,
+            status="succeeded",
+            message="ok",
+            image_path=image_path,
+        )
+
+    commands = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+
+    monkeypatch.setattr("scripts.analysis.worker.subprocess.run", run)
+    monkeypatch.setattr("scripts.analysis.worker.DEFAULT_ANALYSIS_WORKERS", 2)
+    config = SimpleNamespace(
+        python_bin=Path("/venv/bin/python"),
+        capture_script=(
+            tmp_path / "project" / "scripts" / "capture" / "capture_once.py"
+        ),
+        tz=timezone.utc,
+    )
+    state = {}
+
+    poll_analysis_queue(config, archive, run_times, state)
+
+    assert len(state["_futures"]) == 2
+    for future in state["_futures"]:
+        future.result(timeout=1)
+    poll_analysis_queue(config, archive, run_times, state)
+
+    analysis_commands = [
+        command for command in commands if "scripts.analysis.analyze_one" in command
+    ]
+    assert len(analysis_commands) == 2
+    assert state["succeeded"] == 2
 
 
 def test_missing_analysis_dependencies_are_reported_before_an_attempt(

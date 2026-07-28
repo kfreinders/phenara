@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from scripts.analysis.analyze_canopy import analyze_image
+from scripts.analysis.analyze_canopy import analyze_image, setup_logging
 from scripts.analysis.config import AnalysisConfig
 from scripts.analysis.roi import RoiDefinition
 
@@ -22,6 +22,7 @@ def main() -> None:
     parser.add_argument("--image", type=Path, required=True)
     parser.add_argument("--analysis-dir", type=Path, required=True)
     args = parser.parse_args()
+    setup_logging()
     analyze_run_image(args.image, args.analysis_dir)
 
 

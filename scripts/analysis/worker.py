@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -16,6 +18,7 @@ ANALYSIS_POLL_SECONDS = 15
 DEFAULT_ANALYSIS_SECONDS = 5 * 60
 CAPTURE_SAFETY_SECONDS = 60
 MAX_ANALYSIS_SECONDS = 60 * 60
+DEFAULT_ANALYSIS_WORKERS = max(1, min(4, (os.cpu_count() or 1) - 2))
 ANALYSIS_IMPORT_CHECK = (
     "import cv2; from plantcv import plantcv"
 )
@@ -86,13 +89,23 @@ def poll_analysis_queue(
     run_times: list[datetime],
     state: dict[str, Any],
 ) -> dict[str, Any]:
-    """Analyze at most one pending capture when the schedule leaves a safe gap."""
+    """Dispatch pending captures without blocking the scheduler poll job."""
+    queue = state.setdefault(
+        "_queue",
+        AnalysisQueue(run_archive.analysis_dir),
+    )
+    futures: dict[Future, dict[str, Any]] = state.setdefault("_futures", {})
+    _record_finished_analyses(queue, futures)
+
     capture_events = run_archive.events()
-    queue = AnalysisQueue(run_archive.analysis_dir)
     pending = queue.pending(capture_events)
     summary: dict[str, Any] = queue.summary(capture_events)
     if not pending:
-        state.update(summary, state="complete", next_safe_at=None)
+        state.update(
+            summary,
+            state="running" if futures else "complete",
+            next_safe_at=None,
+        )
         return state
 
     now = datetime.now(config.tz)
@@ -100,7 +113,7 @@ def poll_analysis_queue(
     if not window.available:
         state.update(
             summary,
-            state="waiting",
+            state="running" if futures else "waiting",
             reason=window.reason,
             next_safe_at=(
                 window.next_safe_at.isoformat()
@@ -123,20 +136,64 @@ def poll_analysis_queue(
             return state
         state["_environment_ready"] = True
 
-    capture = pending[0]
-    capture_id = capture["capture_id"]
+    executor: ThreadPoolExecutor = state.setdefault(
+        "_executor",
+        ThreadPoolExecutor(
+            max_workers=DEFAULT_ANALYSIS_WORKERS,
+            thread_name_prefix="phenopi-analysis",
+        ),
+    )
+    active_ids = {capture["capture_id"] for capture in futures.values()}
+    capacity = DEFAULT_ANALYSIS_WORKERS - len(futures)
+    candidates = [
+        capture
+        for capture in pending
+        if capture["capture_id"] not in active_ids
+    ][:capacity]
+
+    for capture in candidates:
+        capture_id = capture["capture_id"]
+        queue.record(
+            capture_id=capture_id,
+            image_path=capture["image_path"],
+            status="running",
+            message="Analysis started.",
+        )
+        future = executor.submit(
+            _analyze_capture,
+            config,
+            run_archive,
+            capture,
+            window.timeout_seconds,
+        )
+        futures[future] = capture
+        print(
+            f"[analysis] Dispatched {capture_id} "
+            f"({len(futures)}/{DEFAULT_ANALYSIS_WORKERS} workers active).",
+            flush=True,
+        )
+
+    summary = queue.summary(capture_events)
     state.update(
         summary,
-        state="running",
-        capture_id=capture_id,
+        state="running" if futures else "idle",
+        reason=None,
+        capture_id=(
+            next(iter(futures.values()))["capture_id"]
+            if len(futures) == 1
+            else None
+        ),
         next_safe_at=None,
     )
-    queue.record(
-        capture_id=capture_id,
-        image_path=capture["image_path"],
-        status="running",
-        message="Analysis started.",
-    )
+    return state
+
+
+def _analyze_capture(
+    config: SchedulerConfig,
+    run_archive: RunArchive,
+    capture: dict[str, Any],
+    timeout_seconds: float | None,
+) -> tuple[str, str, float]:
     started = time.monotonic()
     try:
         image_path = _resolve_capture_path(run_archive, capture["image_path"])
@@ -154,7 +211,7 @@ def poll_analysis_queue(
             ],
             check=True,
             cwd=config.capture_script.parents[2],
-            timeout=window.timeout_seconds,
+            timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired:
         message = "Analysis was paused to protect the next capture."
@@ -171,21 +228,34 @@ def poll_analysis_queue(
     else:
         message = "Analysis completed successfully."
         status = "succeeded"
+    return status, message, time.monotonic() - started
 
-    queue.record(
-        capture_id=capture_id,
-        image_path=capture["image_path"],
-        status=status,
-        message=message,
-        duration_seconds=time.monotonic() - started,
-    )
-    state.update(
-        queue.summary(capture_events),
-        state="idle" if status == "succeeded" else "waiting",
-        reason=None if status == "succeeded" else "analysis_failed",
-        capture_id=None,
-    )
-    return state
+
+def _record_finished_analyses(
+    queue: AnalysisQueue,
+    futures: dict[Future, dict[str, Any]],
+) -> None:
+    for future, capture in list(futures.items()):
+        if not future.done():
+            continue
+        del futures[future]
+        try:
+            status, message, duration = future.result()
+        except BaseException as exc:
+            status = "failed"
+            message = f"Analysis worker failed unexpectedly: {exc}"
+            duration = None
+        queue.record(
+            capture_id=capture["capture_id"],
+            image_path=capture["image_path"],
+            status=status,
+            message=message,
+            duration_seconds=duration,
+        )
+        print(
+            f"[analysis] {capture['capture_id']}: {message}",
+            flush=True,
+        )
 
 
 def _resolve_capture_path(run_archive: RunArchive, relative_path: str) -> Path:
