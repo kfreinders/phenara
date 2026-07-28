@@ -17,6 +17,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from phenopi.config import (
     DEVELOPMENT_IMAGE_DIR,
+    DEVELOPMENT_AVAILABLE,
     DEVELOPMENT_MODE_PATH,
     RUNTIME_DIR,
 )
@@ -74,6 +75,7 @@ def capture_once(
     calibration_preview: bool = False,
     development_mode_path: Path = DEVELOPMENT_MODE_PATH,
     development_image_dir: Path = DEVELOPMENT_IMAGE_DIR,
+    development_available: bool = DEVELOPMENT_AVAILABLE,
     runtime_dir: Path = RUNTIME_DIR,
 ) -> Path:
     """Produce one real or simulated JPEG using the production filename."""
@@ -91,7 +93,7 @@ def capture_once(
     with camera_lock(runtime_dir / "camera.lock"):
         temporary = _temporary_jpeg(destination)
         try:
-            if read_development_mode(development_mode_path):
+            if development_available and read_development_mode(development_mode_path):
                 _write_development_capture(
                     temporary,
                     destination=destination,

@@ -29,6 +29,18 @@ def _executable_path(value: str | Path) -> Path:
     return Path(os.path.abspath(Path(value).expanduser()))
 
 
+def _boolean(environment: Mapping[str, str], name: str, default: bool = False) -> bool:
+    value = environment.get(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean.")
+
+
 @dataclass(frozen=True)
 class PhenopiSettings:
     project_root: Path
@@ -43,6 +55,7 @@ class PhenopiSettings:
     capture_script: Path
     development_image_dir: Path
     development_mode_path: Path
+    development_available: bool
     camera_preview_path: Path
     timezone: ZoneInfo
     gui_host: str
@@ -107,6 +120,10 @@ def load_settings(
             project_root / "development" / "sample-images",
         ),
         development_mode_path=runtime_dir / "development-mode.json",
+        development_available=_boolean(
+            env,
+            "PHENOPI_DEVELOPMENT_AVAILABLE",
+        ),
         camera_preview_path=runtime_dir / "camera-preview.jpg",
         timezone=timezone,
         gui_host=env.get("PHENOPI_GUI_HOST", "0.0.0.0"),
@@ -128,6 +145,7 @@ SCHEDULER_COMMAND_PATH = SETTINGS.scheduler_command_path
 CAPTURE_SCRIPT_PATH = SETTINGS.capture_script
 DEVELOPMENT_IMAGE_DIR = SETTINGS.development_image_dir
 DEVELOPMENT_MODE_PATH = SETTINGS.development_mode_path
+DEVELOPMENT_AVAILABLE = SETTINGS.development_available
 CAMERA_PREVIEW_PATH = SETTINGS.camera_preview_path
 TIMEZONE = SETTINGS.timezone
 GUI_HOST = SETTINGS.gui_host

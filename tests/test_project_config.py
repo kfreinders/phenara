@@ -21,6 +21,7 @@ def test_settings_default_to_the_cloned_repository():
         SOURCE_ROOT / "development" / "sample-images"
     )
     assert settings.python_bin == Path(sys.executable).absolute()
+    assert settings.development_available is False
 
 
 def test_settings_use_one_environment_for_gui_and_scheduler_paths(tmp_path):
@@ -30,6 +31,7 @@ def test_settings_use_one_environment_for_gui_and_scheduler_paths(tmp_path):
         "PHENOPI_RUNTIME_DIR": str(tmp_path / "state"),
         "PHENOPI_CAPTURE_DIR": str(tmp_path / "data"),
         "PHENOPI_DEVELOPMENT_IMAGE_DIR": str(tmp_path / "samples"),
+        "PHENOPI_DEVELOPMENT_AVAILABLE": "true",
         "PHENOPI_VENV_DIR": str(tmp_path / "python"),
         "PHENOPI_PYTHON": str(tmp_path / "python" / "bin" / "python"),
         "PHENOPI_TIMEZONE": "UTC",
@@ -41,6 +43,7 @@ def test_settings_use_one_environment_for_gui_and_scheduler_paths(tmp_path):
     assert settings.schedule_path == tmp_path / "state" / "schedule.json"
     assert settings.capture_dir == tmp_path / "data"
     assert settings.development_image_dir == tmp_path / "samples"
+    assert settings.development_available is True
     assert settings.timezone == ZoneInfo("UTC")
     assert settings.gui_host == "127.0.0.1"
     assert settings.gui_port == 8080
@@ -65,6 +68,11 @@ def test_settings_reject_invalid_gui_port(port):
         load_settings({"PHENOPI_GUI_PORT": port})
 
 
+def test_settings_reject_invalid_development_availability():
+    with pytest.raises(ValueError, match="PHENOPI_DEVELOPMENT_AVAILABLE"):
+        load_settings({"PHENOPI_DEVELOPMENT_AVAILABLE": "sometimes"})
+
+
 def test_installer_generates_both_services_for_the_current_checkout():
     installer = (SOURCE_ROOT / "deploy" / "install.sh").read_text()
     scheduler = (
@@ -79,6 +87,8 @@ def test_installer_generates_both_services_for_the_current_checkout():
     assert 'npm --prefix "$PROJECT_ROOT/gui/frontend" run build' in installer
     assert "systemctl enable phenopi-scheduler.service phenopi-gui.service" in installer
     assert "PHENOPI_DEVELOPMENT_IMAGE_DIR" in installer
+    assert "--enable-development-mode" in installer
+    assert "PHENOPI_DEVELOPMENT_AVAILABLE" in installer
     assert "EnvironmentFile=/etc/phenopi/phenopi.env" in scheduler
     assert "EnvironmentFile=/etc/phenopi/phenopi.env" in gui
     assert "-m scripts.scheduling.scheduler" in scheduler

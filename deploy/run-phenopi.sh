@@ -2,6 +2,19 @@
 
 set -Eeuo pipefail
 
+ENABLE_DEVELOPMENT_MODE=false
+while (($#)); do
+  case "$1" in
+    --enable-development-mode) ENABLE_DEVELOPMENT_MODE=true ;;
+    -h|--help)
+      echo "Usage: deploy/run-phenopi.sh [--enable-development-mode]"
+      exit 0
+      ;;
+    *) echo "[deploy] Unknown option: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/gui/frontend"
@@ -9,6 +22,7 @@ export PHENOPI_ROOT="${PHENOPI_ROOT:-$PROJECT_ROOT}"
 export PHENOPI_RUNTIME_DIR="${PHENOPI_RUNTIME_DIR:-$PHENOPI_ROOT/runtime}"
 export PHENOPI_CAPTURE_DIR="${PHENOPI_CAPTURE_DIR:-$PHENOPI_ROOT/captures}"
 export PHENOPI_DEVELOPMENT_IMAGE_DIR="${PHENOPI_DEVELOPMENT_IMAGE_DIR:-$PHENOPI_ROOT/development/sample-images}"
+export PHENOPI_DEVELOPMENT_AVAILABLE="$ENABLE_DEVELOPMENT_MODE"
 export PHENOPI_VENV_DIR="${PHENOPI_VENV_DIR:-$PHENOPI_ROOT/.venv}"
 export PHENOPI_PYTHON="${PHENOPI_PYTHON:-$PHENOPI_VENV_DIR/bin/python}"
 export PHENOPI_TIMEZONE="${PHENOPI_TIMEZONE:-Europe/Amsterdam}"

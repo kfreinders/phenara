@@ -34,7 +34,8 @@ The installer performs the following operations:
 It is safe to rerun the installer after updating the repository. The
 \texttt{--skip-system-packages} option is useful on non-Debian development
 machines, while \texttt{--no-start} installs and enables the units without
-starting them.
+starting them. Sample-image development mode is unavailable by default. It can
+be included explicitly with \texttt{--enable-development-mode}.
 
 \subsection{Shared Configuration}
 
@@ -45,6 +46,7 @@ load the same environment file, containing:
 PHENOPI_ROOT
 PHENOPI_RUNTIME_DIR
 PHENOPI_CAPTURE_DIR
+PHENOPI_DEVELOPMENT_AVAILABLE
 PHENOPI_VENV_DIR
 PHENOPI_PYTHON
 PHENOPI_TIMEZONE

@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from gui.app import app
+from gui.routes import development as development_routes
 from gui.routes import scheduler as scheduler_routes
 from gui.services.schedule_drafts import persist_schedule_draft
 from gui.services.schedule_form import ScheduleFormData
@@ -83,6 +84,18 @@ def test_development_capture_controls_are_registered_and_visible():
     assert "Enable development mode" in source
     assert "Development mode on" in source
     assert "Use sample images" in source
+    assert "development?.available" in source
+
+
+def test_development_mode_api_is_unavailable_without_deploy_flag(monkeypatch):
+    monkeypatch.setattr(development_routes, "DEVELOPMENT_AVAILABLE", False)
+
+    assert development_routes.get_development_status() == {"available": False}
+    with pytest.raises(HTTPException) as unavailable:
+        development_routes.update_development_status(
+            development_routes.DevelopmentModeRequest(enabled=True)
+        )
+    assert unavailable.value.status_code == 404
 
 
 def test_activation_page_rejects_a_malformed_schedule_hash():

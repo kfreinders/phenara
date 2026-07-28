@@ -78,7 +78,7 @@ function Shell() {
         setContactOpen(true);
       }
     }}>About</span></span></h1><p>Experiment setup and analysis interface</p></div>
-      <div className="topbar-status"><button className={`development-pill${development?.enabled ? " development-pill--enabled" : ""}`} type="button" disabled={!development?.can_toggle} title={development?.blocked_reason ?? (development?.enabled ? "Disable development mode" : "Enable development mode")} onClick={() => { setDevelopmentError(null); setDevelopmentOpen(true); }}>{development?.enabled ? "Development mode on" : "Enable development mode"}</button><a className={`status-pill status-pill--${health.status}`} href="/scheduler" title={health.message} aria-label={`${label}. ${health.message}`}>
+      <div className="topbar-status">{development?.available && <button className={`development-pill${development.enabled ? " development-pill--enabled" : ""}`} type="button" disabled={!development.can_toggle} title={development.blocked_reason ?? (development.enabled ? "Disable development mode" : "Enable development mode")} onClick={() => { setDevelopmentError(null); setDevelopmentOpen(true); }}>{development.enabled ? "Development mode on" : "Enable development mode"}</button>}<a className={`status-pill status-pill--${health.status}`} href="/scheduler" title={health.message} aria-label={`${label}. ${health.message}`}>
         <span className="status-pill-dot" aria-hidden="true" /><strong>{label}</strong><small>{health.age_seconds == null ? "—" : `${Math.round(health.age_seconds)}s`}</small>
       </a></div></div></header>
     <main className="layout"><Outlet /></main>

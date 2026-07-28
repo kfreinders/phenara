@@ -16,6 +16,7 @@ ENV_FILE="$ENV_DIR/phenopi.env"
 SYSTEMD_DIR="/etc/systemd/system"
 SKIP_SYSTEM_PACKAGES=false
 START_SERVICES=true
+ENABLE_DEVELOPMENT_MODE=false
 
 usage() {
   cat <<'EOF'
@@ -24,6 +25,8 @@ Usage: deploy/install.sh [options]
 Options:
   --skip-system-packages  Do not install apt packages.
   --no-start              Install and enable services without starting them.
+  --enable-development-mode
+                          Make sample-image development mode available.
   -h, --help              Show this help.
 
 Path and network settings can be overridden with PHENOPI_* environment
@@ -35,6 +38,7 @@ while (($#)); do
   case "$1" in
     --skip-system-packages) SKIP_SYSTEM_PACKAGES=true ;;
     --no-start) START_SERVICES=false ;;
+    --enable-development-mode) ENABLE_DEVELOPMENT_MODE=true ;;
     -h|--help) usage; exit 0 ;;
     *) echo "[install] Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -152,6 +156,7 @@ trap 'rm -f -- "${environment_tmp:-}"' EXIT
   write_environment_value PHENOPI_RUNTIME_DIR "$RUNTIME_DIR"
   write_environment_value PHENOPI_CAPTURE_DIR "$CAPTURE_DIR"
   write_environment_value PHENOPI_DEVELOPMENT_IMAGE_DIR "$DEVELOPMENT_IMAGE_DIR"
+  write_environment_value PHENOPI_DEVELOPMENT_AVAILABLE "$ENABLE_DEVELOPMENT_MODE"
   write_environment_value PHENOPI_VENV_DIR "$VENV_DIR"
   write_environment_value PHENOPI_PYTHON "$PYTHON_BIN"
   write_environment_value PHENOPI_TIMEZONE "$TIMEZONE"

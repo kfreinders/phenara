@@ -105,6 +105,7 @@ def test_development_capture_uses_natural_order_and_marks_dataset(tmp_path):
         captured_at=datetime(2026, 7, 22, 15, 4, 9),
         development_mode_path=mode,
         development_image_dir=samples,
+        development_available=True,
         runtime_dir=runtime,
     )
     second = capture_module.capture_once(
@@ -112,6 +113,7 @@ def test_development_capture_uses_natural_order_and_marks_dataset(tmp_path):
         captured_at=datetime(2026, 7, 22, 15, 5, 9),
         development_mode_path=mode,
         development_image_dir=samples,
+        development_available=True,
         runtime_dir=runtime,
     )
 
@@ -130,6 +132,7 @@ def test_development_preview_uses_reserved_calibration_image(tmp_path):
         calibration_preview=True,
         development_mode_path=mode,
         development_image_dir=samples,
+        development_available=True,
         runtime_dir=runtime,
     )
 
@@ -146,6 +149,7 @@ def test_development_capture_fails_when_sequence_is_exhausted(tmp_path):
         output_dir=output,
         development_mode_path=mode,
         development_image_dir=samples,
+        development_available=True,
         runtime_dir=runtime,
     )
 
@@ -154,5 +158,29 @@ def test_development_capture_fails_when_sequence_is_exhausted(tmp_path):
             output_path=output / "capture_20990101_000001.jpg",
             development_mode_path=mode,
             development_image_dir=samples,
+            development_available=True,
             runtime_dir=runtime,
         )
+
+
+def test_unavailable_development_mode_ignores_stale_enabled_state(
+    tmp_path,
+    monkeypatch,
+):
+    runtime, samples, mode = development_paths(tmp_path)
+    (samples / "calibration.jpg").write_bytes(b"calibration")
+    (samples / "capture-001.jpg").write_bytes(b"sample")
+
+    def fake_capture(destination, **_options):
+        destination.write_bytes(b"real-camera")
+
+    monkeypatch.setattr(capture_module, "capture_image", fake_capture)
+    result = capture_module.capture_once(
+        output_dir=tmp_path / "captures",
+        development_mode_path=mode,
+        development_image_dir=samples,
+        development_available=False,
+        runtime_dir=runtime,
+    )
+
+    assert result.read_bytes() == b"real-camera"

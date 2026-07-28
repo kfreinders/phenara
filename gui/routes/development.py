@@ -18,6 +18,7 @@ from phenopi.config import (
     CAMERA_PREVIEW_PATH,
     CAPTURE_SCRIPT_PATH,
     DEVELOPMENT_IMAGE_DIR,
+    DEVELOPMENT_AVAILABLE,
     DEVELOPMENT_MODE_PATH,
     PYTHON_BIN,
     SCHEDULE_DRAFT_PATH,
@@ -35,16 +36,19 @@ class DevelopmentModeRequest(BaseModel):
 
 
 def _status() -> dict:
-    return development_status(
+    status = development_status(
         mode_path=DEVELOPMENT_MODE_PATH,
         image_dir=DEVELOPMENT_IMAGE_DIR,
         draft_path=SCHEDULE_DRAFT_PATH,
         heartbeat_path=SCHEDULER_HEARTBEAT_PATH,
     )
+    return {"available": True, **status}
 
 
 @router.get("/development/status")
 def get_development_status() -> dict:
+    if not DEVELOPMENT_AVAILABLE:
+        return {"available": False}
     try:
         return _status()
     except ValueError as exc:
@@ -53,6 +57,8 @@ def get_development_status() -> dict:
 
 @router.put("/development/status")
 def update_development_status(request: DevelopmentModeRequest) -> dict:
+    if not DEVELOPMENT_AVAILABLE:
+        raise HTTPException(status_code=404, detail="Development mode is unavailable.")
     try:
         return set_development_mode(
             request.enabled,
