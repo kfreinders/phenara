@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { ErrorNotice, Loading, WorkflowSteps } from "../components";
+import { ErrorNotice, HelpTip, Loading, WorkflowSteps } from "../components";
 import { attachDraftAnalysis, detectAnalysisRoi, getAnalysisConfig, getCameraPreview, previewAnalysis, saveAnalysisProfile } from "../api";
 
 const stageLabels = {

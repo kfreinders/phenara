@@ -421,6 +421,10 @@ def test_schedule_api_routes_and_react_workflow_are_complete():
     assert "workflow_available" in analysis
     assert 'to="/schedule/build/edit"' in analysis
     assert "The plant mask is a black-and-white image" in analysis
+    assert (
+        'import { ErrorNotice, HelpTip, Loading, WorkflowSteps }'
+        in analysis
+    )
     assert 'id="analysis-help-image"' not in analysis
     assert 'id="analysis-help-orientation"' not in analysis
     assert 'id="analysis-help-channel"' not in analysis

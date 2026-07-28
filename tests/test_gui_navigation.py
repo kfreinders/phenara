@@ -52,6 +52,8 @@ def test_camera_alignment_is_a_guarded_schedule_step():
         'analysisEnabled ? "/analysis?workflow=schedule" : "/schedule/review"'
         in source
     )
+    assert "<WorkflowSteps current={3}" in source
+    assert 'updated.analysis_requested' in source
 
 
 def test_spa_fallback_and_all_user_routes_are_registered_in_react():

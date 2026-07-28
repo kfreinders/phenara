@@ -69,7 +69,16 @@ function ExperimentCameraAlignment() {
     setSaving(true);
     setError(null);
     try {
-      setDraft(await api("/api/schedule/draft/camera", { method: "POST" }));
+      const updated = await api(
+        "/api/schedule/draft/camera",
+        { method: "POST" },
+      );
+      setDraft(updated);
+      navigate(
+        updated.analysis_requested
+          ? "/analysis?workflow=schedule"
+          : "/schedule/review",
+      );
     } catch (reason) {
       setError(reason);
     } finally {
@@ -83,7 +92,7 @@ function ExperimentCameraAlignment() {
   const next = analysisEnabled ? "/analysis?workflow=schedule" : "/schedule/review";
 
   return <section className="camera-page">
-    <WorkflowSteps current={2} analysisEnabled={analysisEnabled} />
+    <WorkflowSteps current={3} analysisEnabled={analysisEnabled} />
     <header className="camera-heading"><div><h2>Align the camera</h2><p>Acquire a still from the Phenopi camera and verify the complete tray is framed consistently.</p></div><Link className="button-link secondary" to="/schedule/edit"><span aria-hidden="true">←</span> Back to configure</Link></header>
     <ErrorNotice error={error} />
     <div className="camera-layout">
