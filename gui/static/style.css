@@ -232,6 +232,54 @@ textarea { resize: vertical; }
   gap: 0.5rem;
 }
 .mode-option { display: flex; align-items: center; gap: .3rem; }
+.schedule-mode-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .65rem;
+}
+.schedule-mode-options .mode-option {
+  position: relative;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: .8rem;
+  background: #fff;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+.schedule-mode-options .mode-option:hover { border-color: #84caff; background: #f8fbff; }
+.schedule-mode-options .mode-option.is-selected { border-color: var(--blue); background: #eff8ff; box-shadow: 0 0 0 1px var(--blue); }
+.schedule-mode-options .mode-option > label {
+  flex: 1;
+  align-items: flex-start;
+  gap: .6rem;
+  min-width: 0;
+  padding: .8rem 2rem .8rem .75rem;
+  cursor: pointer;
+}
+.schedule-mode-options .mode-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.schedule-mode-options .mode-option label > span { display: grid; gap: .1rem; min-width: 0; }
+.schedule-mode-options .mode-option label strong { color: var(--blue-dark); font-size: .82rem; line-height: 1.25; }
+.schedule-mode-options .mode-option label small { color: var(--muted); font-size: .68rem; font-weight: 500; line-height: 1.35; }
+.schedule-mode-options .mode-option .mode-help { position: absolute; z-index: 2; top: .55rem; right: .55rem; }
+.schedule-mode-options .mode-option:focus-within { outline: 2px solid rgb(132 173 255 / 50%); outline-offset: 2px; }
+.schedule-mode-icon {
+  flex: 0 0 auto;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: .35rem;
+  border-radius: .65rem;
+  background: #eef4f9;
+  fill: none;
+  stroke: #54708d;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.schedule-mode-icon-dot { fill: #8bb8dc; stroke: #54708d; stroke-width: 1.5; }
+.schedule-mode-icon-accent { fill: #d8f3e3; stroke: #34764e; }
+.mode-option.is-selected .schedule-mode-icon { background: #dbeeff; stroke: var(--blue); }
+.mode-option.is-selected .schedule-mode-icon-dot { fill: #78b7e8; stroke: var(--blue); }
+.mode-option.is-selected .schedule-mode-icon-accent { fill: #bdebcf; stroke: #18794e; }
 .mode-help { position: relative; display: inline-flex; align-items: center; }
 .mode-help-trigger {
   z-index: 1;
@@ -298,6 +346,30 @@ textarea { resize: vertical; }
   padding-top: 1rem;
   border-top: 1px solid var(--line);
 }
+.custom-schedule-editor {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.custom-schedule-editor > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.custom-schedule-editor > header p { max-width: 40rem; margin: .25rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+.custom-window-add { flex: 0 0 auto; padding: .6rem .75rem; font-size: .8rem; }
+.custom-window-list { display: grid; gap: .7rem; margin-top: .9rem; }
+.custom-window {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, .7fr) repeat(3, minmax(8rem, 1fr)) auto;
+  align-items: end;
+  gap: .7rem;
+  padding: .8rem;
+  border: 1px solid #d7e4ef;
+  border-radius: .75rem;
+  background: #f8fafc;
+}
+.custom-window-number { align-self: center; display: flex; align-items: center; gap: .55rem; color: var(--blue-dark); font-size: .82rem; }
+.custom-window-number span { display: grid; flex: 0 0 auto; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; color: #175cd3; background: #d1e9ff; font-weight: 800; }
+.custom-window label, .custom-window .fixed-format-label { font-size: .76rem; }
+.custom-window input { background: #fff; }
+.custom-window-remove { display: grid; place-items: center; width: 2.35rem; height: 2.35rem; padding: 0; color: #b42318; border: 1px solid #fecdca; background: #fff; font-size: 1.25rem; }
 .schedule-window-preview {
   margin-top: 1rem;
   padding: .9rem 1rem 1rem;
@@ -347,6 +419,10 @@ textarea { resize: vertical; }
   .radio-row { align-items: flex-start; flex-direction: column; gap: .7rem; }
   .schedule-window-preview header { flex-direction: column; gap: .45rem; }
   .schedule-window-scale span:nth-child(even) { display: none; }
+  .custom-schedule-editor > header { flex-direction: column; }
+  .custom-window { grid-template-columns: 1fr; }
+  .custom-window-remove { justify-self: end; }
+  .schedule-mode-options { grid-template-columns: 1fr; }
 }
 
 .actions {

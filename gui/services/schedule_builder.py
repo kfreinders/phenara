@@ -132,6 +132,7 @@ def build_schedule_preview(
     centered_before_minutes: int | None = None,
     centered_after_minutes: int | None = None,
     centered_step_minutes: int | None = None,
+    custom_windows: list[dict[str, Any]] | None = None,
 ) -> SchedulePreview:
     _validate_start_date(start_date)
     times = _build_times(
@@ -146,6 +147,7 @@ def build_schedule_preview(
         centered_before_minutes=centered_before_minutes,
         centered_after_minutes=centered_after_minutes,
         centered_step_minutes=centered_step_minutes,
+        custom_windows=custom_windows,
     )
     try:
         schedule = Schedule.create(
@@ -181,6 +183,7 @@ def _build_times(
     centered_before_minutes: int | None,
     centered_after_minutes: int | None,
     centered_step_minutes: int | None,
+    custom_windows: list[dict[str, Any]] | None,
 ) -> list[str]:
     if mode == "every":
         if every_start is None or every_end is None or every_step_minutes is None:
@@ -208,6 +211,24 @@ def _build_times(
             centered_after_minutes,
             centered_step_minutes,
         )
+    if mode == "custom":
+        if not custom_windows:
+            raise ValueError("Custom mode requires at least one capture window.")
+        times = []
+        for index, window in enumerate(custom_windows, start=1):
+            try:
+                times.extend(
+                    every_n_minutes(
+                        str(window["start"]),
+                        str(window["end"]),
+                        int(window["step_minutes"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Custom window {index} is invalid: {exc}"
+                ) from exc
+        return sorted(set(times))
     raise ValueError(f"Unknown schedule mode: {mode!r}.")
 
 

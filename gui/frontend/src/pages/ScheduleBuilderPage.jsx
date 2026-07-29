@@ -8,6 +8,7 @@ const modeOptions = [
   ["every", "Every n minutes", "Capture from the start time through the end time at a regular interval. The end is included only when it falls exactly on an interval."],
   ["duration", "Fixed duration", "Capture from the start time for the chosen duration at a regular interval. The final boundary is included only when it falls exactly on an interval."],
   ["centered", "Centered window", "Create a window before and after a center time. Captures are stepped from the start of that window, so the center is included only when it falls on an interval."],
+  ["custom", "Custom", "Combine windows with different capture intervals. Use the same start and end time to add a single capture."],
 ];
 const scheduleDefaults = {
   mode: "every",
@@ -28,6 +29,10 @@ const scheduleDefaults = {
   centered_before_minutes: 120,
   centered_after_minutes: 120,
   centered_step_minutes: 30,
+  custom_windows: [
+    { start: "08:00", end: "10:00", step_minutes: 30 },
+    { start: "16:00", end: "19:00", step_minutes: 60 },
+  ],
 };
 
 export function ScheduleBuilderPage({ edit = false }) {
@@ -63,14 +68,44 @@ export function ScheduleBuilderPage({ edit = false }) {
     setForm(current => resetScheduleForm(current, defaults, minimum));
     setError(null);
   };
+  const updateCustomWindow = (index, field, value) => {
+    setForm(current => ({
+      ...current,
+      custom_windows: current.custom_windows.map((window, windowIndex) => (
+        windowIndex === index
+          ? { ...window, [field]: field === "step_minutes" ? Number(value) : value }
+          : window
+      )),
+    }));
+  };
+  const addCustomWindow = () => {
+    setForm(current => {
+      const previous = current.custom_windows.at(-1);
+      const nextStart = previous?.end ?? "12:00";
+      return {
+        ...current,
+        custom_windows: [
+          ...current.custom_windows,
+          { start: nextStart, end: nextStart, step_minutes: previous?.step_minutes ?? 30 },
+        ],
+      };
+    });
+  };
+  const removeCustomWindow = index => {
+    setForm(current => ({
+      ...current,
+      custom_windows: current.custom_windows.filter((_, windowIndex) => windowIndex !== index),
+    }));
+  };
   const submit = async event => { event.preventDefault(); setError(null); if (minimum && form.start_date < minimum) { setError(new Error("Start date cannot be in the past.")); return; } setSaving(true); try { await api("/api/schedule/draft", { method: "POST", body: JSON.stringify(form) }); navigate("/camera?workflow=schedule"); } catch (reason) { setError(reason); } finally { setSaving(false); } };
   return <><WorkflowSteps current={2} analysisEnabled={form?.analysis_enabled} /><section className="card schedule-builder-card"><div className="card-header"><div><h2>Schedule builder</h2><p>Step 2: configure when Phenopi should capture images.</p></div><div className="schedule-builder-header-actions"><button className="secondary" type="button" disabled={!defaults || JSON.stringify(form) === JSON.stringify(defaults)} onClick={resetDefaults}>Reset defaults</button><Link className="button-link secondary" to={edit ? "/schedule/edit" : "/schedule"}><span aria-hidden="true">←</span> Back to capture mode</Link></div></div><ErrorNotice error={error} />{form && <form className="schedule-form" onSubmit={submit}>
     <fieldset><legend>Experiment</legend><div className="grid experiment-details"><TextField label="Experiment name" name="experiment_name" value={form.experiment_name} onChange={update} required maxLength={80} /><TextField label="Researcher" optional name="researcher" value={form.researcher ?? ""} onChange={update} maxLength={80} /></div><label><span className="field-label">Notes <span className="optional">Optional</span></span><textarea name="notes" maxLength="1000" rows="3" value={form.notes ?? ""} onChange={update} /></label>
       <div className="grid schedule-timing-fields"><DateField label="Start date" name="start_date" value={form.start_date} minimum={minimum} onChange={update} /><Field label="Number of days" type="number" name="num_days" value={form.num_days} min="1" max="365" onChange={update} /><Field label="Replicates" type="number" name="replicates" value={form.replicates} min="1" max="100" onChange={update} /><label className={`replicate-interval-control${form.replicates <= 1 ? " is-inactive" : ""}`}>Replicate interval (s)<input type="number" name="replicate_interval_seconds" min="0" max="86400" value={form.replicate_interval_seconds} readOnly={form.replicates <= 1} aria-disabled={form.replicates <= 1} onChange={update} required /></label></div></fieldset>
-    <fieldset><legend>Schedule mode</legend><div className="radio-row">{modeOptions.map(([value, label, help]) => <div className="mode-option" key={value}><label><input type="radio" name="mode" value={value} checked={form.mode === value} onChange={update} /> {label}</label><HelpTip label={`${label} mode`} id={`mode-help-${value}`}>{help}</HelpTip></div>)}</div>
+    <fieldset><legend>Schedule mode</legend><div className="schedule-mode-options">{modeOptions.map(([value, label, help]) => <div className={`mode-option${form.mode === value ? " is-selected" : ""}`} key={value}><label><input type="radio" name="mode" value={value} checked={form.mode === value} onChange={update} /><ScheduleModeIcon mode={value} /><span><strong>{label}</strong><small>{modeDescription(value)}</small></span></label><HelpTip label={`${label} mode`} id={`mode-help-${value}`}>{help}</HelpTip></div>)}</div>
       {form.mode === "every" && <div className="grid schedule-mode-fields"><TimeField label="Start time" name="every_start" value={form.every_start} onChange={update} /><TimeField label="End time" name="every_end" value={form.every_end} onChange={update} /><Field label="Step minutes" type="number" name="every_step_minutes" value={form.every_step_minutes} min="1" max="1440" onChange={update} /></div>}
       {form.mode === "duration" && <div className="grid schedule-mode-fields"><TimeField label="Start time" name="duration_start" value={form.duration_start} onChange={update} /><Field label="Duration minutes" type="number" name="duration_minutes" value={form.duration_minutes} min="0" max="1439" onChange={update} /><Field label="Step minutes" type="number" name="duration_step_minutes" value={form.duration_step_minutes} min="1" max="1440" onChange={update} /></div>}
       {form.mode === "centered" && <div className="grid schedule-mode-fields"><TimeField label="Center time" name="centered_center" value={form.centered_center} onChange={update} /><Field label="Before minutes" type="number" name="centered_before_minutes" value={form.centered_before_minutes} min="0" max="1439" onChange={update} /><Field label="After minutes" type="number" name="centered_after_minutes" value={form.centered_after_minutes} min="0" max="1439" onChange={update} /><Field label="Step minutes" type="number" name="centered_step_minutes" value={form.centered_step_minutes} min="1" max="1440" onChange={update} /></div>}
+      {form.mode === "custom" && <CustomScheduleEditor windows={form.custom_windows ?? []} onChange={updateCustomWindow} onAdd={addCustomWindow} onRemove={removeCustomWindow} />}
       <ScheduleWindowPreview form={form} />
     </fieldset>
     <div className="actions"><button type="submit" disabled={saving}>{saving ? "Saving experiment…" : "Continue to camera alignment"}</button></div>
@@ -92,12 +127,11 @@ function ScheduleWindowPreview({ form }) {
   const preview = buildModePreview(form);
   if (!preview.valid) return <section className="schedule-window-preview schedule-window-preview--invalid" aria-live="polite"><strong>Daily time window</strong><p>{preview.message}</p></section>;
   const left = preview.start / 14.4;
-  const width = (preview.end - preview.start) / 14.4;
   return <section className="schedule-window-preview" aria-label={preview.summary} aria-live="polite">
     <header><div><strong>Daily time window</strong><p>{preview.summary}</p></div><span>{preview.captureCount} time point{preview.captureCount === 1 ? "" : "s"}</span></header>
     <div className="schedule-window-shell">
       <div className="schedule-window-axis">
-        <span className="schedule-window-selection" style={{ left: `${left}%`, width: `${width}%` }} />
+        {preview.ranges.map((range, index) => <span className="schedule-window-selection" style={{ left: `${range.start / 14.4}%`, width: `${(range.end - range.start) / 14.4}%` }} key={index} />)}
         {preview.points.map((minute, index) => <i className="schedule-window-capture" style={{ left: `${minute / 14.4}%` }} title={`Capture at ${formatClock(minute)}`} key={index} />)}
         {preview.center !== null && <i className="schedule-window-center" style={{ left: `${preview.center / 14.4}%` }} title={`Center time ${formatClock(preview.center)}`} />}
         <span className="schedule-window-boundary schedule-window-boundary--start" style={{ left: `${left}%` }}>{formatClock(preview.start)}</span>
@@ -109,7 +143,7 @@ function ScheduleWindowPreview({ form }) {
 }
 
 export function buildModePreview(form, markerLimit = 40) {
-  let start; let end; let step; let center = null;
+  let start; let end; let step; let center = null; let ranges = [];
   if (form.mode === "every") {
     start = parseClock(form.every_start); end = parseClock(form.every_end); step = Number(form.every_step_minutes);
   } else if (form.mode === "duration") {
@@ -119,6 +153,19 @@ export function buildModePreview(form, markerLimit = 40) {
     start = center === null ? null : center - Number(form.centered_before_minutes);
     end = center === null ? null : center + Number(form.centered_after_minutes);
     step = Number(form.centered_step_minutes);
+  } else if (form.mode === "custom") {
+    const custom = buildCustomSchedule(form.custom_windows);
+    if (!custom.valid) return custom;
+    const indexes = custom.points.length <= markerLimit
+      ? Array.from({ length: custom.points.length }, (_, index) => index)
+      : Array.from({ length: markerLimit }, (_, index) => Math.round(index * (custom.points.length - 1) / (markerLimit - 1)));
+    return {
+      ...custom,
+      captureCount: custom.points.length,
+      points: indexes.map(index => custom.points[index]),
+      center,
+      summary: `${custom.points.length} unique time point${custom.points.length === 1 ? "" : "s"} across ${custom.ranges.length} window${custom.ranges.length === 1 ? "" : "s"}`,
+    };
   } else {
     return { valid: false, message: "Select a schedule mode to preview its daily window." };
   }
@@ -129,7 +176,57 @@ export function buildModePreview(form, markerLimit = 40) {
   const indexes = captureCount <= markerLimit ? Array.from({ length: captureCount }, (_, index) => index) : Array.from({ length: markerLimit }, (_, index) => Math.round(index * (captureCount - 1) / (markerLimit - 1)));
   const points = indexes.map(index => start + index * step);
   const interval = `${step} minute${step === 1 ? "" : "s"}`;
-  return { valid: true, start, end, step, center, captureCount, points, summary: `${formatClock(start)}–${formatClock(end)} · every ${interval}` };
+  ranges = [{ start, end }];
+  return { valid: true, start, end, step, center, captureCount, points, ranges, summary: `${formatClock(start)}–${formatClock(end)} · every ${interval}` };
+}
+
+export function buildCustomSchedule(windows) {
+  if (!Array.isArray(windows) || windows.length === 0) return { valid: false, message: "Add at least one capture window." };
+  const pointSet = new Set();
+  const ranges = [];
+  for (let index = 0; index < windows.length; index += 1) {
+    const window = windows[index];
+    const start = parseClock(window.start);
+    const end = parseClock(window.end);
+    const step = Number(window.step_minutes);
+    if (start === null || end === null || !Number.isFinite(step) || step <= 0) return { valid: false, message: `Complete window ${index + 1} with valid times and an interval greater than zero.` };
+    if (end < start) return { valid: false, message: `Window ${index + 1} ends before it starts.` };
+    ranges.push({ start, end });
+    for (let minute = start; minute <= end; minute += step) pointSet.add(minute);
+  }
+  const points = [...pointSet].sort((left, right) => left - right);
+  return { valid: true, start: points[0], end: points.at(-1), points, ranges };
+}
+
+function CustomScheduleEditor({ windows, onChange, onAdd, onRemove }) {
+  return <section className="custom-schedule-editor">
+    <header><div><strong>Capture windows</strong><p>Combine intervals or add a single time point. Overlapping captures are included once.</p></div><button className="secondary custom-window-add" type="button" onClick={onAdd}><span aria-hidden="true">＋</span> Add window</button></header>
+    <div className="custom-window-list">
+      {windows.map((window, index) => <article className="custom-window" key={index}>
+        <div className="custom-window-number"><span>{index + 1}</span><strong>Window {index + 1}</strong></div>
+        <TimeField label="Start time" name={`custom_start_${index}`} value={window.start} onChange={event => onChange(index, "start", event.target.value)} />
+        <TimeField label="End time" name={`custom_end_${index}`} value={window.end} onChange={event => onChange(index, "end", event.target.value)} />
+        <Field label="Every (minutes)" type="number" name={`custom_step_${index}`} value={window.step_minutes} min="1" max="1440" onChange={event => onChange(index, "step_minutes", event.target.value)} />
+        <button className="custom-window-remove" type="button" aria-label={`Remove window ${index + 1}`} disabled={windows.length === 1} onClick={() => onRemove(index)}>×</button>
+      </article>)}
+    </div>
+  </section>;
+}
+
+function modeDescription(mode) {
+  return {
+    every: "One regular daily interval",
+    duration: "Start time plus a duration",
+    centered: "Around a central event",
+    custom: "Several intervals or time points",
+  }[mode];
+}
+
+function ScheduleModeIcon({ mode }) {
+  if (mode === "every") return <svg className="schedule-mode-icon" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17" /><path d="M24 14v10l7 5" /><circle className="schedule-mode-icon-dot" cx="12" cy="24" r="2" /><circle className="schedule-mode-icon-dot" cx="24" cy="7" r="2" /><circle className="schedule-mode-icon-dot" cx="36" cy="24" r="2" /></svg>;
+  if (mode === "duration") return <svg className="schedule-mode-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M17 8h14M24 8v5M34 15l3-3" /><circle cx="24" cy="28" r="14" /><path d="M24 19v9h8" /><path className="schedule-mode-icon-accent" d="M14 37a14 14 0 0 0 20 0" /></svg>;
+  if (mode === "centered") return <svg className="schedule-mode-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M6 24h36" /><circle className="schedule-mode-icon-dot" cx="10" cy="24" r="2.5" /><circle className="schedule-mode-icon-dot" cx="17" cy="24" r="2.5" /><circle className="schedule-mode-icon-dot" cx="31" cy="24" r="2.5" /><circle className="schedule-mode-icon-dot" cx="38" cy="24" r="2.5" /><path className="schedule-mode-icon-accent" d="m24 15 9 9-9 9-9-9Z" /></svg>;
+  return <svg className="schedule-mode-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M7 14h15M27 14h14M7 34h9M21 34h20" /><circle className="schedule-mode-icon-dot" cx="10" cy="14" r="3" /><circle className="schedule-mode-icon-dot" cx="18" cy="14" r="3" /><circle className="schedule-mode-icon-dot" cx="30" cy="14" r="3" /><circle className="schedule-mode-icon-dot" cx="38" cy="14" r="3" /><circle className="schedule-mode-icon-dot" cx="10" cy="34" r="3" /><circle className="schedule-mode-icon-dot" cx="24" cy="34" r="3" /><circle className="schedule-mode-icon-dot" cx="38" cy="34" r="3" /><path className="schedule-mode-icon-accent" d="M24 8v12M18 28v12" /></svg>;
 }
 
 function parseClock(value) {

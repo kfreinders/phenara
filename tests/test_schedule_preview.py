@@ -56,6 +56,17 @@ BASE_ARGUMENTS = {
             },
             ["09:30", "10:00", "10:30"],
         ),
+        (
+            "custom",
+            {
+                "custom_windows": [
+                    {"start": "08:00", "end": "09:00", "step_minutes": 30},
+                    {"start": "08:30", "end": "11:30", "step_minutes": 60},
+                    {"start": "16:15", "end": "16:15", "step_minutes": 30},
+                ]
+            },
+            ["08:00", "08:30", "09:00", "09:30", "10:30", "11:30", "16:15"],
+        ),
     ],
 )
 def test_build_schedule_preview_modes(mode, mode_arguments, expected):
@@ -106,6 +117,24 @@ def test_schedule_preview_rejects_invalid_form_values(overrides):
 def test_schedule_preview_requires_fields_for_selected_mode():
     with pytest.raises(ValueError, match="Duration mode requires"):
         build_schedule_preview(**BASE_ARGUMENTS, mode="duration")
+    with pytest.raises(ValueError, match="at least one"):
+        build_schedule_preview(
+            **BASE_ARGUMENTS,
+            mode="custom",
+            custom_windows=[],
+        )
+
+
+def test_custom_schedule_reports_the_invalid_window_number():
+    with pytest.raises(ValueError, match="Custom window 2.*end time"):
+        build_schedule_preview(
+            **BASE_ARGUMENTS,
+            mode="custom",
+            custom_windows=[
+                {"start": "08:00", "end": "09:00", "step_minutes": 30},
+                {"start": "12:00", "end": "11:00", "step_minutes": 15},
+            ],
+        )
 
 
 def test_schedule_preview_rejects_past_and_overflowing_date_ranges():
@@ -157,6 +186,10 @@ def test_schedule_form_data_parses_checkbox_and_supplies_mode_defaults():
     assert form.centered_before_minutes == 120
     assert form.centered_after_minutes == 120
     assert form.centered_step_minutes == 30
+    assert [window.model_dump() for window in form.custom_windows] == [
+        {"start": "08:00", "end": "10:00", "step_minutes": 30},
+        {"start": "16:00", "end": "19:00", "step_minutes": 60},
+    ]
 
 
 def test_schedule_draft_round_trip_and_activation(tmp_path):
@@ -192,6 +225,37 @@ def test_schedule_draft_round_trip_and_activation(tmp_path):
     assert activated["run"]["name"] == "Canopy development"
     assert activated["run"]["id"]
     assert not draft_path.exists()
+
+
+def test_custom_schedule_draft_round_trip(tmp_path):
+    draft_path = tmp_path / "custom-draft.json"
+    form = ScheduleFormData(
+        **BASE_ARGUMENTS,
+        mode="custom",
+        experiment_name="Mixed acquisition",
+        custom_windows=[
+            {"start": "07:30", "end": "09:00", "step_minutes": 30},
+            {"start": "12:15", "end": "12:15", "step_minutes": 60},
+            {"start": "17:00", "end": "19:00", "step_minutes": 60},
+        ],
+    )
+
+    persisted = persist_schedule_draft(form, draft_path)
+    loaded, preview = load_schedule_draft(draft_path)
+
+    assert loaded == persisted
+    assert preview.times == [
+        "07:30",
+        "08:00",
+        "08:30",
+        "09:00",
+        "12:15",
+        "17:00",
+        "18:00",
+        "19:00",
+    ]
+    assert loaded.form.mode == "custom"
+    assert len(loaded.form.custom_windows) == 3
 
 
 @pytest.mark.parametrize(

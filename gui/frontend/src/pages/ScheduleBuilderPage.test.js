@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildModePreview, resetScheduleForm } from "./ScheduleBuilderPage";
+import { buildCustomSchedule, buildModePreview, resetScheduleForm } from "./ScheduleBuilderPage";
 
 describe("resetScheduleForm", () => {
   it("restores schedule defaults while preserving the analysis workflow choice", () => {
@@ -103,5 +103,51 @@ describe("buildModePreview", () => {
     expect(dense.points).toHaveLength(40);
     expect(dense.points[0]).toBe(0);
     expect(dense.points.at(-1)).toBe(1439);
+  });
+});
+
+describe("buildCustomSchedule", () => {
+  it("combines windows with different intervals and removes duplicates", () => {
+    const schedule = buildCustomSchedule([
+      { start: "08:00", end: "09:00", step_minutes: 30 },
+      { start: "08:30", end: "11:30", step_minutes: 60 },
+      { start: "16:15", end: "16:15", step_minutes: 30 },
+    ]);
+
+    expect(schedule).toMatchObject({
+      valid: true,
+      start: 480,
+      end: 975,
+      points: [480, 510, 540, 570, 630, 690, 975],
+    });
+    expect(schedule.ranges).toHaveLength(3);
+  });
+
+  it("provides window-specific validation messages", () => {
+    expect(buildCustomSchedule([])).toMatchObject({
+      valid: false,
+      message: "Add at least one capture window.",
+    });
+    expect(buildCustomSchedule([
+      { start: "08:00", end: "09:00", step_minutes: 30 },
+      { start: "12:00", end: "11:00", step_minutes: 15 },
+    ])).toMatchObject({
+      valid: false,
+      message: "Window 2 ends before it starts.",
+    });
+  });
+
+  it("builds a condensed custom-mode preview", () => {
+    const preview = buildModePreview({
+      mode: "custom",
+      custom_windows: [
+        { start: "08:00", end: "10:00", step_minutes: 30 },
+        { start: "16:00", end: "18:00", step_minutes: 60 },
+      ],
+    }, 4);
+
+    expect(preview.captureCount).toBe(8);
+    expect(preview.points).toHaveLength(4);
+    expect(preview.summary).toBe("8 unique time points across 2 windows");
   });
 });

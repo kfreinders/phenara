@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class CustomScheduleWindow(BaseModel):
+    """One regular capture window within a mixed daily schedule."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start: str
+    end: str
+    step_minutes: int
 
 
 class ScheduleFormData(BaseModel):
@@ -30,6 +40,20 @@ class ScheduleFormData(BaseModel):
     centered_before_minutes: int = 120
     centered_after_minutes: int = 120
     centered_step_minutes: int = 30
+    custom_windows: list[CustomScheduleWindow] = Field(
+        default_factory=lambda: [
+            CustomScheduleWindow(
+                start="08:00",
+                end="10:00",
+                step_minutes=30,
+            ),
+            CustomScheduleWindow(
+                start="16:00",
+                end="19:00",
+                step_minutes=60,
+            ),
+        ]
+    )
 
     def preview_arguments(self) -> dict[str, Any]:
         return self.model_dump(
@@ -90,4 +114,8 @@ def form_defaults() -> dict[str, Any]:
         "centered_before_minutes": 120,
         "centered_after_minutes": 120,
         "centered_step_minutes": 30,
+        "custom_windows": [
+            {"start": "08:00", "end": "10:00", "step_minutes": 30},
+            {"start": "16:00", "end": "19:00", "step_minutes": 60},
+        ],
     }
