@@ -141,6 +141,22 @@ def test_configure_api_discards_an_expired_draft(tmp_path, monkeypatch):
     assert not draft_path.exists()
 
 
+def test_configure_api_recovers_from_an_unreadable_draft(tmp_path, monkeypatch):
+    draft_path, _, _ = configure_paths(monkeypatch, tmp_path)
+    draft_path.write_text("{not valid json")
+
+    payload = schedule_api.configure_schedule(edit=True)
+
+    assert payload["draft_state"] == "invalid"
+    assert payload["form"] == payload["defaults"]
+    assert payload["form"]["start_date"] == date.today().isoformat()
+    assert draft_path.exists()
+
+    schedule_api.delete_schedule_draft()
+
+    assert not draft_path.exists()
+
+
 def test_rejected_draft_returns_a_user_facing_api_error(tmp_path, monkeypatch):
     configure_paths(monkeypatch, tmp_path)
     form = schedule_form_data(start_date=(date.today() - timedelta(days=1)).isoformat())

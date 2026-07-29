@@ -36,13 +36,22 @@ class ActivationRequest(BaseModel):
 
 @router.get("/configure")
 def configure_schedule(edit: bool = False) -> dict:
-    loaded = _load_draft()
+    invalid_draft = False
+    try:
+        loaded = _load_draft()
+    except HTTPException as exc:
+        if exc.status_code != 422:
+            raise
+        loaded = None
+        invalid_draft = True
     defaults = form_defaults()
     return {
         "form": loaded[0].form.form_arguments() if edit and loaded else defaults,
         "defaults": defaults,
         "minimum_start_date": date.today().isoformat(),
-        "draft_state": "ready" if loaded else "none",
+        "draft_state": (
+            "invalid" if invalid_draft else "ready" if loaded else "none"
+        ),
         "analysis_profile_saved": bool(
             loaded and loaded[0].schedule.get("analysis")
         ),

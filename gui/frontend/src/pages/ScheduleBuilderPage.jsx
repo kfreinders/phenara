@@ -33,13 +33,14 @@ const scheduleDefaults = {
 };
 
 export function ScheduleBuilderPage({ edit = false }) {
-  const navigate = useNavigate(); const [params] = useSearchParams(); const [form, setForm] = useState(null); const [defaults, setDefaults] = useState(null); const [minimum, setMinimum] = useState(""); const [error, setError] = useState(null); const [saving, setSaving] = useState(false);
+  const navigate = useNavigate(); const [params] = useSearchParams(); const [form, setForm] = useState(null); const [defaults, setDefaults] = useState(null); const [minimum, setMinimum] = useState(""); const [error, setError] = useState(null); const [saving, setSaving] = useState(false); const [invalidDraft, setInvalidDraft] = useState(false);
   useEffect(() => {
     const analysisChoice = params.get("analysis");
     if (!edit && !["0", "1"].includes(analysisChoice)) { navigate("/schedule", { replace: true }); return; }
     api(`/api/schedule/configure?edit=${edit}`).then(data => {
       if (!edit && data.draft_state === "ready") navigate("/schedule/review", { replace: true });
       else {
+        setInvalidDraft(data.draft_state === "invalid");
         const analysis_enabled = ["0", "1"].includes(analysisChoice) ? analysisChoice === "1" : data.form.analysis_enabled;
         setForm({ ...data.form, analysis_enabled });
         setDefaults({
@@ -64,6 +65,18 @@ export function ScheduleBuilderPage({ edit = false }) {
   const resetDefaults = () => {
     setForm(current => resetScheduleForm(current, defaults, minimum));
     setError(null);
+  };
+  const discardInvalidDraft = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await api("/api/schedule/draft", { method: "DELETE" });
+      setInvalidDraft(false);
+    } catch (reason) {
+      setError(reason);
+    } finally {
+      setSaving(false);
+    }
   };
   const updateCustomDay = (dayIndex, field, value) => {
     setForm(current => {
@@ -117,7 +130,7 @@ export function ScheduleBuilderPage({ edit = false }) {
     } : day),
   }));
   const submit = async event => { event.preventDefault(); setError(null); if (minimum && form.start_date < minimum) { setError(new Error("Start date cannot be in the past.")); return; } setSaving(true); try { await api("/api/schedule/draft", { method: "POST", body: JSON.stringify(form) }); navigate("/camera?workflow=schedule"); } catch (reason) { setError(reason); } finally { setSaving(false); } };
-  return <><WorkflowSteps current={2} analysisEnabled={form?.analysis_enabled} /><section className="card schedule-builder-card"><div className="card-header"><div><h2>Schedule builder</h2><p>Step 2: configure when Phenopi should capture images.</p></div><div className="schedule-builder-header-actions"><button className="secondary" type="button" disabled={!defaults || JSON.stringify(form) === JSON.stringify(defaults)} onClick={resetDefaults}>Reset defaults</button><Link className="button-link secondary" to={edit ? "/schedule/edit" : "/schedule"}><span aria-hidden="true">←</span> Back to capture mode</Link></div></div><ErrorNotice error={error} />{form && <form className="schedule-form" onSubmit={submit}>
+  return <><WorkflowSteps current={2} analysisEnabled={form?.analysis_enabled} /><section className="card schedule-builder-card"><div className="card-header"><div><h2>Schedule builder</h2><p>Step 2: configure when Phenopi should capture images.</p></div><div className="schedule-builder-header-actions"><button className="secondary" type="button" disabled={!defaults || JSON.stringify(form) === JSON.stringify(defaults)} onClick={resetDefaults}>Reset defaults</button><Link className="button-link secondary" to={edit ? "/schedule/edit" : "/schedule"}><span aria-hidden="true">←</span> Back to capture mode</Link></div></div><ErrorNotice error={error} />{invalidDraft && <section className="invalid-draft-recovery" role="alert"><div><strong>The saved schedule draft is invalid</strong><p>Its contents cannot be recovered. Discard it and continue with the fresh schedule shown below.</p></div><button className="secondary" type="button" disabled={saving} onClick={discardInvalidDraft}>Discard invalid draft</button></section>}{form && <form className="schedule-form" onSubmit={submit}>
     <fieldset><legend>Experiment</legend><div className="grid experiment-details"><TextField label="Experiment name" name="experiment_name" value={form.experiment_name} onChange={update} required maxLength={80} /><TextField label="Researcher" optional name="researcher" value={form.researcher ?? ""} onChange={update} maxLength={80} /></div><label><span className="field-label">Notes <span className="optional">Optional</span></span><textarea name="notes" maxLength="1000" rows="3" value={form.notes ?? ""} onChange={update} /></label>
       <div className="grid schedule-timing-fields">{form.mode !== "custom" ? <><DateField label="Start date" name="start_date" value={form.start_date} minimum={minimum} onChange={update} /><Field label="Number of days" type="number" name="num_days" value={form.num_days} min="1" max="365" onChange={update} /></> : <div className="custom-date-derived"><span>Experiment dates</span><strong>Set by the day blocks below</strong><small>{form.start_date} · {form.num_days} day{form.num_days === 1 ? "" : "s"}</small></div>}<Field label="Replicates" type="number" name="replicates" value={form.replicates} min="1" max="100" onChange={update} /><label className={`replicate-interval-control${form.replicates <= 1 ? " is-inactive" : ""}`}>Replicate interval (s)<input type="number" name="replicate_interval_seconds" min="0" max="86400" value={form.replicate_interval_seconds} readOnly={form.replicates <= 1} aria-disabled={form.replicates <= 1} onChange={update} required /></label></div></fieldset>
     <fieldset><legend>Schedule mode</legend><div className="schedule-mode-options">{modeOptions.map(([value, label, help]) => <div className={`mode-option${form.mode === value ? " is-selected" : ""}`} key={value}><label><input type="radio" name="mode" value={value} checked={form.mode === value} onChange={update} /><ScheduleModeIcon mode={value} /><span><strong>{label}</strong><small>{modeDescription(value)}</small></span></label><HelpTip label={`${label} mode`} id={`mode-help-${value}`}>{help}</HelpTip></div>)}</div>

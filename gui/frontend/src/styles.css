@@ -37,6 +37,10 @@
 .capture-mode-footer p { margin: 0; font-size: .86rem; }
 .capture-mode-footer button { flex: 0 0 auto; }
 .schedule-builder-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: .65rem; flex-wrap: wrap; }
+.invalid-draft-recovery { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 1rem; padding: .9rem 1rem; border: 1px solid #fedf89; border-radius: .75rem; background: #fffcf5; }
+.invalid-draft-recovery strong { color: #93370d; }
+.invalid-draft-recovery p { margin: .2rem 0 0; color: #7a2e0e; font-size: .82rem; }
+.invalid-draft-recovery button { flex: 0 0 auto; }
 .react-form-error { margin-top: 1rem; }
 .activity-hours { min-height: 4.3rem; }
 .stop-experiment { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; margin: 0; border-color: #fecdca; background: #fffafa; }
@@ -194,6 +198,7 @@
   .capture-mode-footer button { width: 100%; }
   .schedule-builder-card > .card-header { flex-direction: column; }
   .schedule-builder-header-actions { justify-content: flex-start; }
+  .invalid-draft-recovery { align-items: flex-start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   .analysis-control-group { transition: none; }
