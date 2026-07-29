@@ -56,12 +56,12 @@ export function SchedulePreview({ preview }) {
   return <section className="preview-panel">
     <div className="preview-overview">
       <article className="preview-overview-card"><span>Experiment dates</span><div className="preview-range"><strong>{preview.start_date.replaceAll("-", "/")}</strong><i aria-hidden="true">→</i><strong>{preview.end_date.replaceAll("-", "/")}</strong></div><small>{preview.num_days} day{preview.num_days === 1 ? "" : "s"}</small></article>
-      <article className="preview-overview-card"><span>Daily imaging window</span><div className="preview-range"><strong>{preview.first_time}</strong><i aria-hidden="true">→</i><strong>{preview.last_time}</strong></div><small>{preview.daily_time_points} time point{preview.daily_time_points === 1 ? "" : "s"} per day</small></article>
-      <article className="preview-overview-card"><span>Capture volume</span><strong className="preview-total">{preview.total_captures}</strong><small>{preview.daily_captures} per day · {preview.replicates} per time point</small></article>
+      <article className="preview-overview-card"><span>{preview.varies_by_day ? "Combined imaging window" : "Daily imaging window"}</span><div className="preview-range"><strong>{preview.first_time}</strong><i aria-hidden="true">→</i><strong>{preview.last_time}</strong></div><small>{preview.varies_by_day ? `Up to ${preview.daily_time_points} time points on a scheduled day` : `${preview.daily_time_points} time point${preview.daily_time_points === 1 ? "" : "s"} per day`}</small></article>
+      <article className="preview-overview-card"><span>Capture volume</span><strong className="preview-total">{preview.total_captures}</strong><small>{preview.varies_by_day ? `Up to ${preview.daily_captures} on a scheduled day` : `${preview.daily_captures} per day`} · {preview.replicates} per time point</small></article>
     </div>
     <div className="visual-preview-grid">
       <section className="schedule-graphic-card">
-        <div className="graphic-card-header"><h3>Daily imaging window</h3><p>{preview.summary_sentence}</p>{timelineCondensed && <small>Markers are condensed for readability; all {preview.daily_time_points} time points remain scheduled.</small>}</div>
+        <div className="graphic-card-header"><h3>{preview.varies_by_day ? "Capture times across day blocks" : "Daily imaging window"}</h3><p>{preview.summary_sentence}</p>{timelineCondensed && <small>Markers are condensed for readability; all {preview.daily_time_points} time points remain scheduled.</small>}</div>
         <div className="timeline-shell" aria-label="Daily capture timeline">
           <div className={`timeline-axis${timelineCondensed ? " timeline-axis--condensed" : ""}`}>
             {timelineTicks.map(tick => <span className="timeline-tick" style={{ left: `${tick.percent}%`, "--timeline-delay": `${100 + tick.percent * 5}ms` }} key={tick.time} />)}

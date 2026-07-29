@@ -59,11 +59,15 @@ BASE_ARGUMENTS = {
         (
             "custom",
             {
-                "custom_windows": [
-                    {"start": "08:00", "end": "09:00", "step_minutes": 30},
-                    {"start": "08:30", "end": "11:30", "step_minutes": 60},
-                    {"start": "16:15", "end": "16:15", "step_minutes": 30},
-                ]
+                "custom_days": [{
+                    "start_date": "2099-07-18",
+                    "end_date": "2099-07-19",
+                    "windows": [
+                        {"start": "08:00", "end": "09:00", "step_minutes": 30},
+                        {"start": "08:30", "end": "11:30", "step_minutes": 60},
+                        {"start": "16:15", "end": "16:15", "step_minutes": 30},
+                    ],
+                }],
             },
             ["08:00", "08:30", "09:00", "09:30", "10:30", "11:30", "16:15"],
         ),
@@ -121,19 +125,23 @@ def test_schedule_preview_requires_fields_for_selected_mode():
         build_schedule_preview(
             **BASE_ARGUMENTS,
             mode="custom",
-            custom_windows=[],
+            custom_days=[],
         )
 
 
 def test_custom_schedule_reports_the_invalid_window_number():
-    with pytest.raises(ValueError, match="Custom window 2.*end time"):
+    with pytest.raises(ValueError, match="Day block 1, capture range 2.*end time"):
         build_schedule_preview(
             **BASE_ARGUMENTS,
             mode="custom",
-            custom_windows=[
-                {"start": "08:00", "end": "09:00", "step_minutes": 30},
-                {"start": "12:00", "end": "11:00", "step_minutes": 15},
-            ],
+            custom_days=[{
+                "start_date": "2099-07-18",
+                "end_date": "2099-07-19",
+                "windows": [
+                    {"start": "08:00", "end": "09:00", "step_minutes": 30},
+                    {"start": "12:00", "end": "11:00", "step_minutes": 15},
+                ],
+            }],
         )
 
 
@@ -186,10 +194,7 @@ def test_schedule_form_data_parses_checkbox_and_supplies_mode_defaults():
     assert form.centered_before_minutes == 120
     assert form.centered_after_minutes == 120
     assert form.centered_step_minutes == 30
-    assert [window.model_dump() for window in form.custom_windows] == [
-        {"start": "08:00", "end": "10:00", "step_minutes": 30},
-        {"start": "16:00", "end": "19:00", "step_minutes": 60},
-    ]
+    assert form.custom_days == []
 
 
 def test_schedule_draft_round_trip_and_activation(tmp_path):
@@ -233,10 +238,22 @@ def test_custom_schedule_draft_round_trip(tmp_path):
         **BASE_ARGUMENTS,
         mode="custom",
         experiment_name="Mixed acquisition",
-        custom_windows=[
-            {"start": "07:30", "end": "09:00", "step_minutes": 30},
-            {"start": "12:15", "end": "12:15", "step_minutes": 60},
-            {"start": "17:00", "end": "19:00", "step_minutes": 60},
+        custom_days=[
+            {
+                "start_date": "2099-07-18",
+                "end_date": "2099-07-18",
+                "windows": [
+                    {"start": "07:30", "end": "09:00", "step_minutes": 30},
+                    {"start": "12:15", "end": "12:15", "step_minutes": 60},
+                ],
+            },
+            {
+                "start_date": "2099-07-19",
+                "end_date": "2099-07-19",
+                "windows": [
+                    {"start": "17:00", "end": "19:00", "step_minutes": 60},
+                ],
+            },
         ],
     )
 
@@ -255,7 +272,8 @@ def test_custom_schedule_draft_round_trip(tmp_path):
         "19:00",
     ]
     assert loaded.form.mode == "custom"
-    assert len(loaded.form.custom_windows) == 3
+    assert len(loaded.form.custom_days) == 2
+    assert preview.total_captures == 16
 
 
 @pytest.mark.parametrize(

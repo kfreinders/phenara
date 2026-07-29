@@ -321,13 +321,15 @@ def write_schedule(
     replicate_interval_seconds: int = 0,
     run: dict | None = None,
     analysis: dict | None = None,
+    daily_times: dict[str, list[str]] | None = None,
     overwrite: bool = False,
 ) -> None:
-    validate_unique_expanded_times(
-        times=times,
-        replicates=replicates,
-        replicate_interval_seconds=replicate_interval_seconds,
-    )
+    for values in (daily_times or {"default": times}).values():
+        validate_unique_expanded_times(
+            times=values,
+            replicates=replicates,
+            replicate_interval_seconds=replicate_interval_seconds,
+        )
     schedule = Schedule.create(
         start_date=start_date,
         num_days=num_days,
@@ -336,6 +338,7 @@ def write_schedule(
         replicate_interval_seconds=replicate_interval_seconds,
         run=run,
         analysis=analysis,
+        daily_times=daily_times,
     )
 
     if output.exists() and not overwrite:

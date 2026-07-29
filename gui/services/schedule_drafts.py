@@ -226,6 +226,7 @@ def activate_schedule_draft(
         replicate_interval_seconds=preview.replicate_interval_seconds,
         run=draft.schedule["run"],
         analysis=draft.schedule.get("analysis"),
+        daily_times=draft.schedule.get("daily_times"),
         overwrite=True,
     )
     discard_schedule_draft(draft_path)

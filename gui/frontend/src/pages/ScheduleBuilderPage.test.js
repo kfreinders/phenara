@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCustomSchedule, buildModePreview, resetScheduleForm } from "./ScheduleBuilderPage";
+import { buildCustomSchedule, buildModePreview, nextCalendarDate, resetScheduleForm } from "./ScheduleBuilderPage";
 
 describe("resetScheduleForm", () => {
   it("restores schedule defaults while preserving the analysis workflow choice", () => {
@@ -109,9 +109,11 @@ describe("buildModePreview", () => {
 describe("buildCustomSchedule", () => {
   it("combines windows with different intervals and removes duplicates", () => {
     const schedule = buildCustomSchedule([
-      { start: "08:00", end: "09:00", step_minutes: 30 },
-      { start: "08:30", end: "11:30", step_minutes: 60 },
-      { start: "16:15", end: "16:15", step_minutes: 30 },
+      { start_date: "2026-08-01", end_date: "2026-08-02", windows: [
+        { start: "08:00", end: "09:00", step_minutes: 30 },
+        { start: "08:30", end: "11:30", step_minutes: 60 },
+        { start: "16:15", end: "16:15", step_minutes: 30 },
+      ] },
     ]);
 
     expect(schedule).toMatchObject({
@@ -126,28 +128,42 @@ describe("buildCustomSchedule", () => {
   it("provides window-specific validation messages", () => {
     expect(buildCustomSchedule([])).toMatchObject({
       valid: false,
-      message: "Add at least one capture window.",
+      message: "Add at least one day block.",
     });
     expect(buildCustomSchedule([
-      { start: "08:00", end: "09:00", step_minutes: 30 },
-      { start: "12:00", end: "11:00", step_minutes: 15 },
+      { start_date: "2026-08-01", end_date: "2026-08-01", windows: [
+        { start: "08:00", end: "09:00", step_minutes: 30 },
+        { start: "12:00", end: "11:00", step_minutes: 15 },
+      ] },
     ])).toMatchObject({
       valid: false,
-      message: "Window 2 ends before it starts.",
+      message: "Capture range 2 in day block 1 ends before it starts.",
     });
   });
 
   it("builds a condensed custom-mode preview", () => {
     const preview = buildModePreview({
       mode: "custom",
-      custom_windows: [
-        { start: "08:00", end: "10:00", step_minutes: 30 },
-        { start: "16:00", end: "18:00", step_minutes: 60 },
-      ],
+      custom_days: [{ start_date: "2026-08-01", end_date: "2026-08-02", windows: [
+          { start: "08:00", end: "10:00", step_minutes: 30 },
+          { start: "16:00", end: "18:00", step_minutes: 60 },
+      ] }],
     }, 4);
 
-    expect(preview.captureCount).toBe(8);
+    expect(preview.captureCount).toBe(16);
     expect(preview.points).toHaveLength(4);
-    expect(preview.summary).toBe("8 unique time points across 2 windows");
+    expect(preview.summary).toBe("16 time points across 2 scheduled days");
+  });
+});
+
+describe("nextCalendarDate", () => {
+  it("starts a following block on the next calendar day", () => {
+    expect(nextCalendarDate("2026-07-31")).toBe("2026-08-01");
+    expect(nextCalendarDate("2028-02-28")).toBe("2028-02-29");
+  });
+
+  it("rejects incomplete dates", () => {
+    expect(nextCalendarDate("2026-07-")).toBeNull();
+    expect(nextCalendarDate(undefined)).toBeNull();
   });
 });

@@ -16,6 +16,16 @@ class CustomScheduleWindow(BaseModel):
     step_minutes: int
 
 
+class CustomScheduleDay(BaseModel):
+    """A date range sharing one set of custom capture windows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start_date: str
+    end_date: str
+    windows: list[CustomScheduleWindow]
+
+
 class ScheduleFormData(BaseModel):
     """Typed representation of the schedule builder's submitted fields."""
 
@@ -40,20 +50,7 @@ class ScheduleFormData(BaseModel):
     centered_before_minutes: int = 120
     centered_after_minutes: int = 120
     centered_step_minutes: int = 30
-    custom_windows: list[CustomScheduleWindow] = Field(
-        default_factory=lambda: [
-            CustomScheduleWindow(
-                start="08:00",
-                end="10:00",
-                step_minutes=30,
-            ),
-            CustomScheduleWindow(
-                start="16:00",
-                end="19:00",
-                step_minutes=60,
-            ),
-        ]
-    )
+    custom_days: list[CustomScheduleDay] = Field(default_factory=list)
 
     def preview_arguments(self) -> dict[str, Any]:
         return self.model_dump(
@@ -94,13 +91,15 @@ class ScheduleFormData(BaseModel):
 
 
 def form_defaults() -> dict[str, Any]:
+    start = date.today()
+    end = date.fromordinal(start.toordinal() + 13)
     return {
         "mode": "every",
         "experiment_name": "",
         "researcher": "",
         "notes": "",
         "analysis_enabled": False,
-        "start_date": date.today().isoformat(),
+        "start_date": start.isoformat(),
         "num_days": 14,
         "replicates": 1,
         "replicate_interval_seconds": 0,
@@ -114,8 +113,14 @@ def form_defaults() -> dict[str, Any]:
         "centered_before_minutes": 120,
         "centered_after_minutes": 120,
         "centered_step_minutes": 30,
-        "custom_windows": [
-            {"start": "08:00", "end": "10:00", "step_minutes": 30},
-            {"start": "16:00", "end": "19:00", "step_minutes": 60},
+        "custom_days": [
+            {
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "windows": [
+                    {"start": "08:00", "end": "10:00", "step_minutes": 30},
+                    {"start": "16:00", "end": "19:00", "step_minutes": 60},
+                ],
+            },
         ],
     }

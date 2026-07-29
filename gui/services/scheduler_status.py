@@ -84,7 +84,8 @@ def build_schedule_overview(
         "num_days": normalized["num_days"],
         "current_day": current_day,
         "times": normalized["times"],
-        "daily_time_points": len(normalized["times"]),
+        "daily_time_points": configured.daily_time_points,
+        "varies_by_day": bool(configured.daily_times),
         "replicates": normalized["replicates"],
         "replicate_interval_seconds": normalized[
             "replicate_interval_seconds"

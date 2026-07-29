@@ -8,7 +8,7 @@ const modeOptions = [
   ["every", "Every n minutes", "Capture from the start time through the end time at a regular interval. The end is included only when it falls exactly on an interval."],
   ["duration", "Fixed duration", "Capture from the start time for the chosen duration at a regular interval. The final boundary is included only when it falls exactly on an interval."],
   ["centered", "Centered window", "Create a window before and after a center time. Captures are stepped from the start of that window, so the center is included only when it falls on an interval."],
-  ["custom", "Custom", "Combine windows with different capture intervals. Use the same start and end time to add a single capture."],
+  ["custom", "Custom", "Create date or day-range blocks, each with its own capture intervals. Use the same start and end time for a single capture."],
 ];
 const scheduleDefaults = {
   mode: "every",
@@ -29,10 +29,7 @@ const scheduleDefaults = {
   centered_before_minutes: 120,
   centered_after_minutes: 120,
   centered_step_minutes: 30,
-  custom_windows: [
-    { start: "08:00", end: "10:00", step_minutes: 30 },
-    { start: "16:00", end: "19:00", step_minutes: 60 },
-  ],
+  custom_days: [],
 };
 
 export function ScheduleBuilderPage({ edit = false }) {
@@ -68,45 +65,67 @@ export function ScheduleBuilderPage({ edit = false }) {
     setForm(current => resetScheduleForm(current, defaults, minimum));
     setError(null);
   };
-  const updateCustomWindow = (index, field, value) => {
-    setForm(current => ({
-      ...current,
-      custom_windows: current.custom_windows.map((window, windowIndex) => (
-        windowIndex === index
-          ? { ...window, [field]: field === "step_minutes" ? Number(value) : value }
-          : window
-      )),
-    }));
-  };
-  const addCustomWindow = () => {
+  const updateCustomDay = (dayIndex, field, value) => {
     setForm(current => {
-      const previous = current.custom_windows.at(-1);
-      const nextStart = previous?.end ?? "12:00";
-      return {
-        ...current,
-        custom_windows: [
-          ...current.custom_windows,
-          { start: nextStart, end: nextStart, step_minutes: previous?.step_minutes ?? 30 },
-        ],
-      };
+      const custom_days = current.custom_days.map((day, index) => (
+        index === dayIndex ? { ...day, [field]: value } : day
+      ));
+      return withCustomBounds(current, custom_days);
     });
   };
-  const removeCustomWindow = index => {
+  const updateCustomWindow = (dayIndex, windowIndex, field, value) => {
     setForm(current => ({
       ...current,
-      custom_windows: current.custom_windows.filter((_, windowIndex) => windowIndex !== index),
+      custom_days: current.custom_days.map((day, index) => index === dayIndex ? {
+        ...day,
+        windows: day.windows.map((window, rangeIndex) => rangeIndex === windowIndex
+          ? { ...window, [field]: field === "step_minutes" ? Number(value) : value }
+          : window),
+      } : day),
     }));
   };
+  const addCustomDay = () => {
+    setForm(current => {
+      const previousEnd = current.custom_days.at(-1)?.end_date;
+      const nextStart = nextCalendarDate(previousEnd) ?? current.start_date;
+      const custom_days = [...current.custom_days, {
+        start_date: nextStart,
+        end_date: nextStart,
+        windows: [{ start: "12:00", end: "12:00", step_minutes: 30 }],
+      }];
+      return withCustomBounds(current, custom_days);
+    });
+  };
+  const removeCustomDay = dayIndex => {
+    setForm(current => withCustomBounds(
+      current,
+      current.custom_days.filter((_, index) => index !== dayIndex),
+    ));
+  };
+  const addCustomWindow = dayIndex => setForm(current => ({
+    ...current,
+    custom_days: current.custom_days.map((day, index) => index === dayIndex ? {
+      ...day,
+      windows: [...day.windows, { start: day.windows.at(-1)?.end ?? "12:00", end: day.windows.at(-1)?.end ?? "12:00", step_minutes: day.windows.at(-1)?.step_minutes ?? 30 }],
+    } : day),
+  }));
+  const removeCustomWindow = (dayIndex, windowIndex) => setForm(current => ({
+    ...current,
+    custom_days: current.custom_days.map((day, index) => index === dayIndex ? {
+      ...day,
+      windows: day.windows.filter((_, rangeIndex) => rangeIndex !== windowIndex),
+    } : day),
+  }));
   const submit = async event => { event.preventDefault(); setError(null); if (minimum && form.start_date < minimum) { setError(new Error("Start date cannot be in the past.")); return; } setSaving(true); try { await api("/api/schedule/draft", { method: "POST", body: JSON.stringify(form) }); navigate("/camera?workflow=schedule"); } catch (reason) { setError(reason); } finally { setSaving(false); } };
   return <><WorkflowSteps current={2} analysisEnabled={form?.analysis_enabled} /><section className="card schedule-builder-card"><div className="card-header"><div><h2>Schedule builder</h2><p>Step 2: configure when Phenopi should capture images.</p></div><div className="schedule-builder-header-actions"><button className="secondary" type="button" disabled={!defaults || JSON.stringify(form) === JSON.stringify(defaults)} onClick={resetDefaults}>Reset defaults</button><Link className="button-link secondary" to={edit ? "/schedule/edit" : "/schedule"}><span aria-hidden="true">←</span> Back to capture mode</Link></div></div><ErrorNotice error={error} />{form && <form className="schedule-form" onSubmit={submit}>
     <fieldset><legend>Experiment</legend><div className="grid experiment-details"><TextField label="Experiment name" name="experiment_name" value={form.experiment_name} onChange={update} required maxLength={80} /><TextField label="Researcher" optional name="researcher" value={form.researcher ?? ""} onChange={update} maxLength={80} /></div><label><span className="field-label">Notes <span className="optional">Optional</span></span><textarea name="notes" maxLength="1000" rows="3" value={form.notes ?? ""} onChange={update} /></label>
-      <div className="grid schedule-timing-fields"><DateField label="Start date" name="start_date" value={form.start_date} minimum={minimum} onChange={update} /><Field label="Number of days" type="number" name="num_days" value={form.num_days} min="1" max="365" onChange={update} /><Field label="Replicates" type="number" name="replicates" value={form.replicates} min="1" max="100" onChange={update} /><label className={`replicate-interval-control${form.replicates <= 1 ? " is-inactive" : ""}`}>Replicate interval (s)<input type="number" name="replicate_interval_seconds" min="0" max="86400" value={form.replicate_interval_seconds} readOnly={form.replicates <= 1} aria-disabled={form.replicates <= 1} onChange={update} required /></label></div></fieldset>
+      <div className="grid schedule-timing-fields">{form.mode !== "custom" ? <><DateField label="Start date" name="start_date" value={form.start_date} minimum={minimum} onChange={update} /><Field label="Number of days" type="number" name="num_days" value={form.num_days} min="1" max="365" onChange={update} /></> : <div className="custom-date-derived"><span>Experiment dates</span><strong>Set by the day blocks below</strong><small>{form.start_date} · {form.num_days} day{form.num_days === 1 ? "" : "s"}</small></div>}<Field label="Replicates" type="number" name="replicates" value={form.replicates} min="1" max="100" onChange={update} /><label className={`replicate-interval-control${form.replicates <= 1 ? " is-inactive" : ""}`}>Replicate interval (s)<input type="number" name="replicate_interval_seconds" min="0" max="86400" value={form.replicate_interval_seconds} readOnly={form.replicates <= 1} aria-disabled={form.replicates <= 1} onChange={update} required /></label></div></fieldset>
     <fieldset><legend>Schedule mode</legend><div className="schedule-mode-options">{modeOptions.map(([value, label, help]) => <div className={`mode-option${form.mode === value ? " is-selected" : ""}`} key={value}><label><input type="radio" name="mode" value={value} checked={form.mode === value} onChange={update} /><ScheduleModeIcon mode={value} /><span><strong>{label}</strong><small>{modeDescription(value)}</small></span></label><HelpTip label={`${label} mode`} id={`mode-help-${value}`}>{help}</HelpTip></div>)}</div>
       {form.mode === "every" && <div className="grid schedule-mode-fields"><TimeField label="Start time" name="every_start" value={form.every_start} onChange={update} /><TimeField label="End time" name="every_end" value={form.every_end} onChange={update} /><Field label="Step minutes" type="number" name="every_step_minutes" value={form.every_step_minutes} min="1" max="1440" onChange={update} /></div>}
       {form.mode === "duration" && <div className="grid schedule-mode-fields"><TimeField label="Start time" name="duration_start" value={form.duration_start} onChange={update} /><Field label="Duration minutes" type="number" name="duration_minutes" value={form.duration_minutes} min="0" max="1439" onChange={update} /><Field label="Step minutes" type="number" name="duration_step_minutes" value={form.duration_step_minutes} min="1" max="1440" onChange={update} /></div>}
       {form.mode === "centered" && <div className="grid schedule-mode-fields"><TimeField label="Center time" name="centered_center" value={form.centered_center} onChange={update} /><Field label="Before minutes" type="number" name="centered_before_minutes" value={form.centered_before_minutes} min="0" max="1439" onChange={update} /><Field label="After minutes" type="number" name="centered_after_minutes" value={form.centered_after_minutes} min="0" max="1439" onChange={update} /><Field label="Step minutes" type="number" name="centered_step_minutes" value={form.centered_step_minutes} min="1" max="1440" onChange={update} /></div>}
-      {form.mode === "custom" && <CustomScheduleEditor windows={form.custom_windows ?? []} onChange={updateCustomWindow} onAdd={addCustomWindow} onRemove={removeCustomWindow} />}
-      <ScheduleWindowPreview form={form} />
+      {form.mode === "custom" && <CustomScheduleEditor days={form.custom_days ?? []} minimum={minimum} onDayChange={updateCustomDay} onWindowChange={updateCustomWindow} onAddDay={addCustomDay} onRemoveDay={removeCustomDay} onAddWindow={addCustomWindow} onRemoveWindow={removeCustomWindow} />}
+      {form.mode !== "custom" && <ScheduleWindowPreview form={form} />}
     </fieldset>
     <div className="actions"><button type="submit" disabled={saving}>{saving ? "Saving experiment…" : "Continue to camera alignment"}</button></div>
   </form>}</section></>;
@@ -154,17 +173,17 @@ export function buildModePreview(form, markerLimit = 40) {
     end = center === null ? null : center + Number(form.centered_after_minutes);
     step = Number(form.centered_step_minutes);
   } else if (form.mode === "custom") {
-    const custom = buildCustomSchedule(form.custom_windows);
+    const custom = buildCustomSchedule(form.custom_days);
     if (!custom.valid) return custom;
     const indexes = custom.points.length <= markerLimit
       ? Array.from({ length: custom.points.length }, (_, index) => index)
       : Array.from({ length: markerLimit }, (_, index) => Math.round(index * (custom.points.length - 1) / (markerLimit - 1)));
     return {
       ...custom,
-      captureCount: custom.points.length,
+      captureCount: custom.totalTimePoints,
       points: indexes.map(index => custom.points[index]),
       center,
-      summary: `${custom.points.length} unique time point${custom.points.length === 1 ? "" : "s"} across ${custom.ranges.length} window${custom.ranges.length === 1 ? "" : "s"}`,
+      summary: `${custom.totalTimePoints} time point${custom.totalTimePoints === 1 ? "" : "s"} across ${custom.scheduledDays} scheduled day${custom.scheduledDays === 1 ? "" : "s"}`,
     };
   } else {
     return { valid: false, message: "Select a schedule mode to preview its daily window." };
@@ -180,35 +199,82 @@ export function buildModePreview(form, markerLimit = 40) {
   return { valid: true, start, end, step, center, captureCount, points, ranges, summary: `${formatClock(start)}–${formatClock(end)} · every ${interval}` };
 }
 
-export function buildCustomSchedule(windows) {
-  if (!Array.isArray(windows) || windows.length === 0) return { valid: false, message: "Add at least one capture window." };
+export function buildCustomSchedule(days) {
+  if (!Array.isArray(days) || days.length === 0) return { valid: false, message: "Add at least one day block." };
   const pointSet = new Set();
   const ranges = [];
-  for (let index = 0; index < windows.length; index += 1) {
-    const window = windows[index];
-    const start = parseClock(window.start);
-    const end = parseClock(window.end);
-    const step = Number(window.step_minutes);
-    if (start === null || end === null || !Number.isFinite(step) || step <= 0) return { valid: false, message: `Complete window ${index + 1} with valid times and an interval greater than zero.` };
-    if (end < start) return { valid: false, message: `Window ${index + 1} ends before it starts.` };
-    ranges.push({ start, end });
-    for (let minute = start; minute <= end; minute += step) pointSet.add(minute);
+  const occupiedDates = new Set();
+  let totalTimePoints = 0;
+  for (let dayIndex = 0; dayIndex < days.length; dayIndex += 1) {
+    const day = days[dayIndex];
+    if (!day.start_date || !day.end_date || day.end_date < day.start_date) return { valid: false, message: `Enter a valid date range for day block ${dayIndex + 1}.` };
+    const dates = dateRange(day.start_date, day.end_date);
+    if (dates.some(value => occupiedDates.has(value))) return { valid: false, message: `Day block ${dayIndex + 1} overlaps an earlier date range.` };
+    dates.forEach(value => occupiedDates.add(value));
+    if (!day.windows?.length) return { valid: false, message: `Add a capture range to day block ${dayIndex + 1}.` };
+    const blockPoints = new Set();
+    for (let index = 0; index < day.windows.length; index += 1) {
+      const window = day.windows[index];
+      const start = parseClock(window.start);
+      const end = parseClock(window.end);
+      const step = Number(window.step_minutes);
+      if (start === null || end === null || !Number.isFinite(step) || step <= 0) return { valid: false, message: `Complete capture range ${index + 1} in day block ${dayIndex + 1}.` };
+      if (end < start) return { valid: false, message: `Capture range ${index + 1} in day block ${dayIndex + 1} ends before it starts.` };
+      ranges.push({ start, end });
+      for (let minute = start; minute <= end; minute += step) {
+        pointSet.add(minute);
+        blockPoints.add(minute);
+      }
+    }
+    totalTimePoints += blockPoints.size * dates.length;
   }
   const points = [...pointSet].sort((left, right) => left - right);
-  return { valid: true, start: points[0], end: points.at(-1), points, ranges };
+  return { valid: true, start: points[0], end: points.at(-1), points, ranges, totalTimePoints, scheduledDays: occupiedDates.size };
 }
 
-function CustomScheduleEditor({ windows, onChange, onAdd, onRemove }) {
+function withCustomBounds(form, custom_days) {
+  const validDates = custom_days.flatMap(day => [day.start_date, day.end_date]).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+  if (!validDates.length) return { ...form, custom_days };
+  const start_date = validDates[0];
+  const endDate = validDates.at(-1);
+  return { ...form, custom_days, start_date, num_days: dateRange(start_date, endDate).length };
+}
+
+function dateRange(start, end) {
+  const values = [];
+  const current = new Date(`${start}T12:00:00Z`);
+  const last = new Date(`${end}T12:00:00Z`);
+  while (current <= last && values.length <= 365) {
+    values.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return values;
+}
+
+export function nextCalendarDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return null;
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function CustomScheduleEditor({ days, minimum, onDayChange, onWindowChange, onAddDay, onRemoveDay, onAddWindow, onRemoveWindow }) {
   return <section className="custom-schedule-editor">
-    <header><div><strong>Capture windows</strong><p>Combine intervals or add a single time point. Overlapping captures are included once.</p></div><button className="secondary custom-window-add" type="button" onClick={onAdd}><span aria-hidden="true">＋</span> Add window</button></header>
-    <div className="custom-window-list">
-      {windows.map((window, index) => <article className="custom-window" key={index}>
-        <div className="custom-window-number"><span>{index + 1}</span><strong>Window {index + 1}</strong></div>
-        <TimeField label="Start time" name={`custom_start_${index}`} value={window.start} onChange={event => onChange(index, "start", event.target.value)} />
-        <TimeField label="End time" name={`custom_end_${index}`} value={window.end} onChange={event => onChange(index, "end", event.target.value)} />
-        <Field label="Every (minutes)" type="number" name={`custom_step_${index}`} value={window.step_minutes} min="1" max="1440" onChange={event => onChange(index, "step_minutes", event.target.value)} />
-        <button className="custom-window-remove" type="button" aria-label={`Remove window ${index + 1}`} disabled={windows.length === 1} onClick={() => onRemove(index)}>×</button>
+    <header><div><strong>Day blocks and capture ranges</strong><p>Choose the dates for each block, then add one or more capture ranges within it. Dates not included in a block have no captures.</p></div></header>
+    <div className="custom-day-list">
+      {days.map((day, dayIndex) => <article className="custom-day" key={dayIndex}>
+        <header><div className="custom-window-number"><span>{dayIndex + 1}</span><strong>Day block {dayIndex + 1}</strong></div><button className="custom-window-remove" type="button" aria-label={`Remove day block ${dayIndex + 1}`} disabled={days.length === 1} onClick={() => onRemoveDay(dayIndex)}>×</button></header>
+        <div className="custom-day-dates" aria-label={`Selected date range ${day.start_date} through ${day.end_date}`}><DateField label="From date" name={`custom_day_start_${dayIndex}`} value={day.start_date} minimum={minimum} onChange={event => onDayChange(dayIndex, "start_date", event.target.value)} /><span className="custom-date-range-link" aria-hidden="true">→</span><DateField label="Through date" name={`custom_day_end_${dayIndex}`} value={day.end_date} minimum={day.start_date || minimum} onChange={event => onDayChange(dayIndex, "end_date", event.target.value)} /></div>
+        <div className="custom-window-list"><div className="custom-window-list-heading"><span aria-hidden="true">↳</span><div><strong>Capture ranges</strong><small>Applied to every date in this day block</small></div></div>{day.windows.map((window, index) => <div className="custom-window" key={index}>
+          <div className="custom-window-number"><strong>Capture range {index + 1}</strong></div>
+          <TimeField label="Start time" name={`custom_start_${dayIndex}_${index}`} value={window.start} onChange={event => onWindowChange(dayIndex, index, "start", event.target.value)} />
+          <TimeField label="End time" name={`custom_end_${dayIndex}_${index}`} value={window.end} onChange={event => onWindowChange(dayIndex, index, "end", event.target.value)} />
+          <Field label="Every (minutes)" type="number" name={`custom_step_${dayIndex}_${index}`} value={window.step_minutes} min="1" max="1440" onChange={event => onWindowChange(dayIndex, index, "step_minutes", event.target.value)} />
+          <button className="custom-window-remove" type="button" aria-label={`Remove capture range ${index + 1} from day block ${dayIndex + 1}`} disabled={day.windows.length === 1} onClick={() => onRemoveWindow(dayIndex, index)}>×</button>
+        </div>)}<button className="secondary custom-range-add" type="button" onClick={() => onAddWindow(dayIndex)}>＋ Add capture range</button></div>
       </article>)}
+      <button className="secondary custom-window-add" type="button" onClick={onAddDay}><span aria-hidden="true">＋</span> Add date block</button>
     </div>
   </section>;
 }
@@ -218,7 +284,7 @@ function modeDescription(mode) {
     every: "One regular daily interval",
     duration: "Start time plus a duration",
     centered: "Around a central event",
-    custom: "Several intervals or time points",
+    custom: "Different timing by date",
   }[mode];
 }
 

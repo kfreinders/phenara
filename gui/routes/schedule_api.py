@@ -205,6 +205,7 @@ def _review_payload(draft, preview, status: dict) -> dict:
             "end_date": preview.end_date,
             "date_range_label": preview.date_range_label,
             "daily_time_points": preview.daily_time_points,
+            "varies_by_day": preview.varies_by_day,
             "daily_captures": preview.daily_captures,
             "total_captures": preview.total_captures,
             "first_time": preview.first_time,

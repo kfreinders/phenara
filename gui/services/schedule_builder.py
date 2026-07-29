@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from scripts.scheduling.make_schedule import (
@@ -46,6 +46,10 @@ class SchedulePreview:
         return self.schedule.daily_time_points
 
     @property
+    def varies_by_day(self) -> bool:
+        return bool(self.schedule.daily_times)
+
+    @property
     def daily_captures(self) -> int:
         return self.schedule.daily_captures
 
@@ -75,6 +79,12 @@ class SchedulePreview:
 
     @property
     def summary_sentence(self) -> str:
+        if self.varies_by_day:
+            return (
+                f"Capture timing varies by date, with up to "
+                f"{self.daily_captures} images on a scheduled day and "
+                f"{self.total_captures} images across the experiment."
+            )
         time_point_word = "time point" if self.daily_time_points == 1 else "time points"
         replicate_word = "replicate" if self.replicates == 1 else "replicates"
         return (
@@ -132,10 +142,10 @@ def build_schedule_preview(
     centered_before_minutes: int | None = None,
     centered_after_minutes: int | None = None,
     centered_step_minutes: int | None = None,
-    custom_windows: list[dict[str, Any]] | None = None,
+    custom_days: list[dict[str, Any]] | None = None,
 ) -> SchedulePreview:
     _validate_start_date(start_date)
-    times = _build_times(
+    times, daily_times = _build_times(
         mode=mode,
         every_start=every_start,
         every_end=every_end,
@@ -147,7 +157,7 @@ def build_schedule_preview(
         centered_before_minutes=centered_before_minutes,
         centered_after_minutes=centered_after_minutes,
         centered_step_minutes=centered_step_minutes,
-        custom_windows=custom_windows,
+        custom_days=custom_days,
     )
     try:
         schedule = Schedule.create(
@@ -156,6 +166,7 @@ def build_schedule_preview(
             times=times,
             replicates=replicates,
             replicate_interval_seconds=replicate_interval_seconds,
+            daily_times=daily_times,
         )
     except ValueError as exc:
         if "supported calendar" in str(exc):
@@ -183,18 +194,18 @@ def _build_times(
     centered_before_minutes: int | None,
     centered_after_minutes: int | None,
     centered_step_minutes: int | None,
-    custom_windows: list[dict[str, Any]] | None,
-) -> list[str]:
+    custom_days: list[dict[str, Any]] | None,
+) -> tuple[list[str], dict[str, list[str]] | None]:
     if mode == "every":
         if every_start is None or every_end is None or every_step_minutes is None:
             raise ValueError("Every mode requires start, end, and step minutes.")
-        return every_n_minutes(every_start, every_end, every_step_minutes)
+        return every_n_minutes(every_start, every_end, every_step_minutes), None
     if mode == "duration":
         if duration_start is None or duration_minutes is None or duration_step_minutes is None:
             raise ValueError("Duration mode requires start, duration, and step minutes.")
         return every_n_minutes_for_duration(
             duration_start, duration_minutes, duration_step_minutes
-        )
+        ), None
     if mode == "centered":
         if (
             centered_center is None
@@ -210,25 +221,43 @@ def _build_times(
             centered_before_minutes,
             centered_after_minutes,
             centered_step_minutes,
-        )
+        ), None
     if mode == "custom":
-        if not custom_windows:
-            raise ValueError("Custom mode requires at least one capture window.")
-        times = []
-        for index, window in enumerate(custom_windows, start=1):
+        if not custom_days:
+            raise ValueError("Custom mode requires at least one day block.")
+        by_date: dict[str, list[str]] = {}
+        for day_index, block in enumerate(custom_days, start=1):
             try:
-                times.extend(
-                    every_n_minutes(
-                        str(window["start"]),
-                        str(window["end"]),
-                        int(window["step_minutes"]),
-                    )
-                )
+                first = date.fromisoformat(str(block["start_date"]))
+                last = date.fromisoformat(str(block["end_date"]))
+                windows = block["windows"]
             except (KeyError, TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"Custom window {index} is invalid: {exc}"
-                ) from exc
-        return sorted(set(times))
+                raise ValueError(f"Day block {day_index} has invalid dates.") from exc
+            if last < first:
+                raise ValueError(f"Day block {day_index} ends before it starts.")
+            if not windows:
+                raise ValueError(f"Day block {day_index} requires a capture range.")
+            block_times = []
+            for window_index, window in enumerate(windows, start=1):
+                try:
+                    block_times.extend(every_n_minutes(
+                        str(window["start"]), str(window["end"]),
+                        int(window["step_minutes"]),
+                    ))
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Day block {day_index}, capture range {window_index} "
+                        f"is invalid: {exc}"
+                    ) from exc
+            current = first
+            while current <= last:
+                key = current.isoformat()
+                if key in by_date:
+                    raise ValueError(f"Day blocks overlap on {key}.")
+                by_date[key] = sorted(set(block_times))
+                current += timedelta(days=1)
+        union = sorted({value for values in by_date.values() for value in values})
+        return union, by_date
     raise ValueError(f"Unknown schedule mode: {mode!r}.")
 
 

@@ -64,11 +64,16 @@ class Schedule:
     replicate_interval_seconds: int = 0
     run: RunMetadata | None = None
     analysis: AnalysisProfile | None = None
+    daily_times: tuple[tuple[date, tuple[time, ...]], ...] = ()
 
     def __post_init__(self) -> None:
+        peak_points = max(
+            (len(values) for _, values in self.daily_times),
+            default=len(self.times),
+        )
         validate_schedule_size(
             num_days=self.num_days,
-            daily_time_points=len(self.times),
+            daily_time_points=peak_points,
             replicates=self.replicates,
             replicate_interval_seconds=self.replicate_interval_seconds,
         )
@@ -77,6 +82,14 @@ class Schedule:
             replicates=self.replicates,
             replicate_interval_seconds=self.replicate_interval_seconds,
         )
+        for day_date, values in self.daily_times:
+            if not self.start_date <= day_date <= self.end_date:
+                raise ValueError("daily schedule date is outside the experiment")
+            validate_replicate_windows(
+                [value.hour * 3600 + value.minute * 60 for value in values],
+                replicates=self.replicates,
+                replicate_interval_seconds=self.replicate_interval_seconds,
+            )
         try:
             self.start_date + timedelta(days=self.num_days - 1)
         except OverflowError as exc:
@@ -96,6 +109,7 @@ class Schedule:
         run: Mapping[str, Any] | RunMetadata | None = None,
         analysis: Mapping[str, Any] | AnalysisProfile | None = None,
         deduplicate_times: bool = False,
+        daily_times: Mapping[str, list[str]] | None = None,
     ) -> "Schedule":
         parsed_date = _parse_date(start_date)
         parsed_times = tuple(_parse_time(value) for value in times)
@@ -116,6 +130,21 @@ class Schedule:
             if analysis is not None
             else None
         )
+        parsed_daily_times = tuple(
+            (
+                _parse_date(day),
+                tuple(sorted({_parse_time(value) for value in values})),
+            )
+            for day, values in sorted((daily_times or {}).items())
+        )
+        if parsed_daily_times:
+            parsed_times = tuple(
+                sorted({
+                    capture_time
+                    for _, values in parsed_daily_times
+                    for capture_time in values
+                })
+            )
         return cls(
             start_date=parsed_date,
             num_days=int(num_days),
@@ -124,6 +153,7 @@ class Schedule:
             replicate_interval_seconds=int(replicate_interval_seconds),
             run=parsed_run,
             analysis=parsed_analysis,
+            daily_times=parsed_daily_times,
         )
 
     @classmethod
@@ -143,6 +173,7 @@ class Schedule:
                 run=value.get("run"),
                 analysis=value.get("analysis"),
                 deduplicate_times=True,
+                daily_times=value.get("daily_times"),
             )
         except TypeError as exc:
             raise ValueError("schedule data is invalid") from exc
@@ -160,6 +191,8 @@ class Schedule:
 
     @property
     def daily_time_points(self) -> int:
+        if self.daily_times:
+            return max(len(values) for _, values in self.daily_times)
         return len(self.times)
 
     @property
@@ -168,13 +201,22 @@ class Schedule:
 
     @property
     def total_captures(self) -> int:
+        if self.daily_times:
+            return sum(len(values) for _, values in self.daily_times) * self.replicates
         return self.daily_captures * self.num_days
 
     def expand(self, tz: ZoneInfo) -> list[datetime]:
         jobs = []
-        for day_offset in range(self.num_days):
-            current_day = self.start_date + timedelta(days=day_offset)
-            for capture_time in self.times:
+        schedule_days = (
+            self.daily_times
+            if self.daily_times
+            else tuple(
+                (self.start_date + timedelta(days=offset), self.times)
+                for offset in range(self.num_days)
+            )
+        )
+        for current_day, times in schedule_days:
+            for capture_time in times:
                 base = datetime.combine(current_day, capture_time, tzinfo=tz)
                 for replicate in range(self.replicates):
                     jobs.append(
@@ -198,6 +240,14 @@ class Schedule:
             value["run"] = self.run.to_dict()
         if self.analysis is not None:
             value["analysis"] = self.analysis.to_dict()
+        if self.daily_times:
+            value["daily_times"] = {
+                day.isoformat(): [
+                    capture_time.strftime("%H:%M")
+                    for capture_time in times
+                ]
+                for day, times in self.daily_times
+            }
         return value
 
     def to_json(self) -> str:

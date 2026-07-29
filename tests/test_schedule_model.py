@@ -48,6 +48,31 @@ def test_schedule_expands_days_and_replicates():
     assert expanded[-1].isoformat() == "2026-07-24T10:00:10+02:00"
 
 
+def test_schedule_expands_date_specific_capture_times():
+    schedule = Schedule.create(
+        start_date="2026-07-23",
+        num_days=3,
+        times=["08:00", "09:00", "17:00"],
+        daily_times={
+            "2026-07-23": ["08:00", "09:00"],
+            "2026-07-25": ["17:00"],
+        },
+        replicates=1,
+    )
+
+    expanded = schedule.expand(ZoneInfo("Europe/Amsterdam"))
+
+    assert [value.isoformat() for value in expanded] == [
+        "2026-07-23T08:00:00+02:00",
+        "2026-07-23T09:00:00+02:00",
+        "2026-07-25T17:00:00+02:00",
+    ]
+    assert schedule.daily_time_points == 2
+    assert schedule.daily_captures == 2
+    assert schedule.total_captures == 3
+    assert Schedule.from_json(schedule.to_json()) == schedule
+
+
 def test_schedule_rejects_missing_fields_and_overlapping_replicates():
     with pytest.raises(ValueError, match="missing required field 'start_date'"):
         Schedule.from_dict({})
