@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { useSchedulerHealth } from "./hooks";
 import { getDevelopmentStatus, setDevelopmentMode } from "./api";
 import { SchedulerPage } from "./pages/SchedulerPage";
@@ -10,6 +10,7 @@ import { CameraPage } from "./pages/CameraPage";
 import { ExperimentDownloadPage } from "./pages/ExperimentDownloadPage";
 import { AnalysisSetupPage } from "./pages/AnalysisSetupPage";
 import { CaptureModePage } from "./pages/CaptureModePage";
+import { DirectoryAnalysisPage } from "./pages/DirectoryAnalysisPage";
 
 const healthLabels = {
   healthy: "Healthy", waiting_for_schedule: "Waiting for schedule",
@@ -81,6 +82,10 @@ function Shell() {
       <div className="topbar-status">{development?.available && <button className={`development-pill${development.enabled ? " development-pill--enabled" : ""}`} type="button" disabled={!development.can_toggle} title={development.blocked_reason ?? (development.enabled ? "Disable development mode" : "Enable development mode")} onClick={() => { setDevelopmentError(null); setDevelopmentOpen(true); }}>{development.enabled ? "Development mode on" : "Enable development mode"}</button>}<a className={`status-pill status-pill--${health.status}`} href="/scheduler" title={health.message} aria-label={`${label}. ${health.message}`}>
         <span className="status-pill-dot" aria-hidden="true" /><strong>{label}</strong><small>{health.age_seconds == null ? "—" : `${Math.round(health.age_seconds)}s`}</small>
       </a></div></div></header>
+    <nav className="primary-tabs" aria-label="Primary navigation">
+      <NavLink to="/scheduler">Experiments</NavLink>
+      <NavLink to="/directory-analysis">Analyze directory</NavLink>
+    </nav>
     <main className="layout"><Outlet /></main>
     {contactOpen && <div className="phenopi-modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) setContactOpen(false);
@@ -125,6 +130,7 @@ export default function App() {
     <Route path="schedule/activation" element={<ActivationPage />} />
     <Route path="camera" element={<CameraPage />} />
     <Route path="analysis" element={<AnalysisSetupPage />} />
+    <Route path="directory-analysis" element={<DirectoryAnalysisPage />} />
     <Route path="experiments/:runId" element={<ExperimentDownloadPage />} />
     <Route path="*" element={<Navigate to="/scheduler" replace />} />
   </Route></Routes>;

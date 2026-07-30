@@ -5,7 +5,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from gui.routes import analysis, development, schedule_api, scheduler
+from gui.routes import (
+    analysis,
+    development,
+    directory_analysis,
+    schedule_api,
+    scheduler,
+)
 from phenopi.config import GUI_HOST, GUI_PORT, PROJECT_ROOT
 
 
@@ -77,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(schedule_api.router)
     app.include_router(scheduler.router)
     app.include_router(analysis.router)
+    app.include_router(directory_analysis.router)
     app.include_router(development.router)
 
     react_dir = PROJECT_ROOT / "gui" / "react-dist"

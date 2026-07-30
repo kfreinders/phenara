@@ -157,6 +157,7 @@ def analyze_images(
     output_dir: Path,
     cfg: AnalysisConfig,
     n_workers: int | None = None,
+    roi_definition: RoiDefinition | None = None,
 ) -> pd.DataFrame:
     logger = logging.getLogger(__name__)
     all_results: list[pd.DataFrame] = []
@@ -164,8 +165,13 @@ def analyze_images(
     if not image_paths:
         raise ValueError("No images were provided for analysis.")
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     roi_path = output_dir / "roi-definition.json"
-    if roi_path.exists():
+    if roi_definition is not None:
+        logger.info("Using explicitly calibrated reusable ROI grid")
+        _validate_roi_definition(roi_definition, cfg)
+        roi_definition.save(roi_path)
+    elif roi_path.exists():
         logger.info("Loading reusable ROI grid: %s", roi_path)
         roi_definition = RoiDefinition.load(roi_path)
         _validate_roi_definition(roi_definition, cfg)

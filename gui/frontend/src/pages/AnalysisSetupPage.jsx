@@ -27,12 +27,24 @@ export function AnalysisSetupPage() {
 }
 
 function ScheduledAnalysisSetupPage() {
+  return <CalibrationWorkspace />;
+}
+
+export function CalibrationWorkspace({
+  initialConfig = null,
+  initialImageData = null,
+  initialFileName = "",
+  onComplete = null,
+  onInvalidated = null,
+}) {
   const navigate = useNavigate();
-  const scheduleWorkflow = true;
-  const [config, setConfig] = useState(null);
-  const [defaultConfig, setDefaultConfig] = useState(null);
-  const [imageData, setImageData] = useState(null);
-  const [fileName, setFileName] = useState("");
+  const scheduleWorkflow = !onComplete;
+  const [config, setConfig] = useState(initialConfig);
+  const [defaultConfig, setDefaultConfig] = useState(
+    initialConfig ? { ...initialConfig } : null,
+  );
+  const [imageData, setImageData] = useState(initialImageData);
+  const [fileName, setFileName] = useState(initialFileName);
   const [stages, setStages] = useState(null);
   const [roi, setRoi] = useState(null);
   const [analysisCrop, setAnalysisCrop] = useState({ x: 0, y: 0, width: 1, height: 1 });
@@ -49,6 +61,19 @@ function ScheduledAnalysisSetupPage() {
   const previewArea = useRef(null);
 
   useEffect(() => {
+    if (!scheduleWorkflow) {
+      setConfig(initialConfig);
+      setDefaultConfig(initialConfig ? { ...initialConfig } : null);
+      setImageData(initialImageData);
+      setFileName(initialFileName);
+      setStages(null);
+      setRoi(null);
+      setSaved(false);
+      setAnalysisCrop({ x: 0, y: 0, width: 1, height: 1 });
+      setMaskExclusions([]);
+      setError(null);
+      return;
+    }
     getAnalysisConfig()
       .then(payload => {
         if (!payload.workflow_available) {
@@ -70,7 +95,13 @@ function ScheduledAnalysisSetupPage() {
         setImageData(dataUrl);
       })
       .catch(setError);
-  }, [navigate]);
+  }, [
+    initialConfig,
+    initialFileName,
+    initialImageData,
+    navigate,
+    scheduleWorkflow,
+  ]);
 
   useEffect(() => {
     if (!imageData || !config) return;
@@ -152,6 +183,7 @@ function ScheduledAnalysisSetupPage() {
   const update = (key, value) => {
     setRoi(null);
     setSaved(false);
+    onInvalidated?.();
     if (key === "rotate_angle") {
       setMaskExclusions([]);
     }
@@ -160,12 +192,14 @@ function ScheduledAnalysisSetupPage() {
   const updateCrop = value => {
     setRoi(null);
     setSaved(false);
+    onInvalidated?.();
     setMaskExclusions([]);
     setAnalysisCrop(value);
   };
   const updateMaskExclusions = updater => {
     setRoi(null);
     setSaved(false);
+    onInvalidated?.();
     setMaskExclusions(updater);
   };
   const restoreDefaults = () => {
@@ -174,6 +208,7 @@ function ScheduledAnalysisSetupPage() {
     setMaskExclusions([]);
     setRoi(null);
     setSaved(false);
+    onInvalidated?.();
     setError(null);
   };
   const detectRoi = async () => {
@@ -192,7 +227,16 @@ function ScheduledAnalysisSetupPage() {
     setSaving(true);
     setError(null);
     try {
-      await saveAnalysisProfile(config, roi.definition);
+      if (scheduleWorkflow) {
+        await saveAnalysisProfile(config, roi.definition);
+      } else {
+        await onComplete({
+          config,
+          roi: roi.definition,
+          analysisCrop,
+          maskExclusions,
+        });
+      }
       setSaved(true);
       if (scheduleWorkflow) {
         await attachDraftAnalysis();
@@ -221,20 +265,20 @@ function ScheduledAnalysisSetupPage() {
 
   return <section className="analysis-page">
     {scheduleWorkflow && <WorkflowSteps current={4} analysisEnabled />}
-    <header className="react-page-heading analysis-page-heading"><div><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Analysis setup"}</h2><p>Tune plant segmentation using a representative calibration image.</p></div>{scheduleWorkflow && <Link className="button-link secondary" to="/schedule/build/edit"><span aria-hidden="true">←</span> Back to schedule</Link>}</header>
+    <header className="react-page-heading analysis-page-heading"><div><h2>{scheduleWorkflow ? "Calibrate canopy analysis" : "Calibrate directory analysis"}</h2><p>Tune plant segmentation using a representative calibration image.</p></div>{scheduleWorkflow && <Link className="button-link secondary" to="/schedule/build/edit"><span aria-hidden="true">←</span> Back to schedule</Link>}</header>
     <ErrorNotice error={error} />
-    {scheduleWorkflow && <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : "4"}</span><div><h3>{saved ? "This experiment is calibrated" : "Calibration required"}</h3><p>{saved ? "Continue with the calibration already saved for this experiment, or replace it below after changing the camera or tray setup." : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Loading…" : "Use this calibration"}</button>}</section>}
+    <section className={`card analysis-workflow-intro${saved ? " analysis-workflow-intro--saved" : ""}`}><div><span aria-hidden="true">{saved ? "✓" : scheduleWorkflow ? "4" : "2"}</span><div><h3>{saved ? (scheduleWorkflow ? "This experiment is calibrated" : "Directory calibration ready") : "Calibration required"}</h3><p>{saved ? (scheduleWorkflow ? "Continue with the calibration already saved for this experiment, or replace it below after changing the camera or tray setup." : "The calibrated settings and ROI grid are ready for directory analysis.") : "Canopy measurements cannot start until segmentation and the ROI grid have been calibrated."}</p></div></div>{scheduleWorkflow && saved && <button type="button" onClick={useSavedProfile} disabled={saving}>{saving ? "Loading…" : "Use this calibration"}</button>}</section>
     <div className="analysis-setup-layout">
       <aside className="card analysis-controls">
         <div className="analysis-controls-actions"><button type="button" className="secondary analysis-restore-defaults" disabled={!defaultsChanged} onClick={restoreDefaults}>Restore defaults</button></div>
-        <div className="analysis-image-picker">
+        {scheduleWorkflow ? <div className="analysis-image-picker">
           <strong>Calibration image</strong>
           <label className="button-link secondary analysis-file-button">
             {fileName ? "Choose another image" : "Choose image"}
             <input type="file" accept="image/jpeg,image/png" onChange={selectImage} />
           </label>
           {fileName && <small title={fileName}>{fileName}</small>}
-        </div>
+        </div> : <div className="analysis-image-picker"><strong>Calibration image</strong><small title={fileName}>{fileName}</small></div>}
         <fieldset className={`analysis-control-group${activeControl === "orientation" ? " is-active" : ""}`} disabled={!imageData}>
           <legend>Image orientation</legend>
           <RangeControl label="Rotation" help="Straighten a tilted tray before cropping and segmentation. Positive and negative values rotate the image in opposite directions." value={config.rotate_angle} min={-10} max={10} step={0.1} suffix="°" onChange={value => update("rotate_angle", value)} />
@@ -276,7 +320,7 @@ function ScheduledAnalysisSetupPage() {
           <article ref={roiResult} className="card analysis-stage analysis-stage--roi" data-control-group="roi" tabIndex="-1">
             <header><div><h3>Automatic ROI grid</h3><p>{roi ? `${roi.definition.rows} × ${roi.definition.columns} reusable regions` : "Detect reusable plant measurement regions"}</p></div><span className={roi ? "analysis-roi-ready" : "analysis-roi-waiting"}>{roi ? "Detected" : "Not detected"}</span></header>
             {roi ? <><div className="analysis-stage-image"><img src={roi.overlay} alt="Automatically detected PlantCV ROI grid" /></div>
-              <footer className="analysis-save-profile"><div><strong>{saved ? "Analysis setup saved" : "Ready to save"}</strong><p>This calibration will be stored only with this experiment.</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Saved" : scheduleWorkflow ? "Save and continue to review" : "Save analysis setup"}</button></footer></> : <div className="analysis-roi-placeholder" aria-label="ROI grid has not been detected"><span className="analysis-roi-placeholder-grid" aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <i key={index} />)}</span><p>Set the tray rows and columns, then select <strong>Detect ROI grid</strong>.</p></div>}
+              <footer className="analysis-save-profile"><div><strong>{saved ? (scheduleWorkflow ? "Analysis setup saved" : "Directory calibration ready") : "Ready to save"}</strong><p>{scheduleWorkflow ? "This calibration will be stored only with this experiment." : "Confirm this calibration before analyzing the directory."}</p></div><button type="button" onClick={saveProfile} disabled={saving || saved}>{saving ? "Saving…" : saved ? "Calibration ready" : scheduleWorkflow ? "Save and continue to review" : "Use this calibration"}</button></footer></> : <div className="analysis-roi-placeholder" aria-label="ROI grid has not been detected"><span className="analysis-roi-placeholder-grid" aria-hidden="true">{Array.from({ length: 12 }, (_, index) => <i key={index} />)}</span><p>Set the tray rows and columns, then select <strong>Detect ROI grid</strong>.</p></div>}
           </article>
         </div>}
       </section>

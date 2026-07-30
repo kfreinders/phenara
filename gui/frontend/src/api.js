@@ -73,3 +73,18 @@ export const attachDraftAnalysis = () => api(
   "/api/schedule/draft/analysis",
   { method: "POST" },
 );
+export const inspectAnalysisDirectory = (directory, blackMeanThreshold) => api(
+  "/api/directory-analysis/inspect",
+  { method: "POST", body: JSON.stringify({ directory, black_mean_threshold: blackMeanThreshold }) },
+);
+export const getAnalysisDirectoryInspection = jobId => api(
+  `/api/directory-analysis/inspect/${encodeURIComponent(jobId)}`,
+);
+export const loadDirectoryCalibrationImage = (directory, image, blackMeanThreshold) => api(
+  "/api/directory-analysis/image",
+  { method: "POST", body: JSON.stringify({ directory, image, black_mean_threshold: blackMeanThreshold }) },
+);
+export const runDirectoryAnalysis = payload => api(
+  "/api/directory-analysis/run",
+  { method: "POST", body: JSON.stringify(payload) },
+);
