@@ -24,6 +24,7 @@ def test_analysis_config_round_trips_and_has_stable_fingerprint(tmp_path):
         ({"sepchannel": "red"}, "LAB channel"),
         ({"threshold": 256}, "between 0 and 255"),
         ({"roi_rows": 0}, "ROI rows"),
+        ({"roi_diameter_scale": 2.1}, "ROI diameter scale"),
         ({"fill_size": -1}, "Fill size"),
         ({"pot_diameter_px": 0}, "Pot diameter in pixels"),
         ({"grid_x": 10}, "require x, y, width, and height"),
@@ -52,3 +53,4 @@ def test_analysis_config_reports_invalid_json():
 
 def test_analysis_config_uses_safe_calibration_defaults():
     assert AnalysisConfig().threshold == 145
+    assert AnalysisConfig().roi_diameter_scale == 1.0

@@ -339,6 +339,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--roi-rows", type=int, default=5)
     parser.add_argument("--roi-cols", type=int, default=9)
+    parser.add_argument(
+        "--roi-diameter-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Scale automatically detected ROI diameters "
+            "(0.5 to 2.0; default: 1.0)."
+        ),
+    )
     parser.add_argument("--grid-margin-x", type=int, default=0)
     parser.add_argument("--grid-margin-y", type=int, default=0)
     parser.add_argument("--grid-cell-padding-x", type=int, default=0)
@@ -373,6 +382,7 @@ def main() -> None:
         grid_height=args.grid_height,
         roi_rows=args.roi_rows,
         roi_cols=args.roi_cols,
+        roi_diameter_scale=args.roi_diameter_scale,
         grid_margin_x=args.grid_margin_x,
         grid_margin_y=args.grid_margin_y,
         grid_cell_padding_x=args.grid_cell_padding_x,

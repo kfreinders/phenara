@@ -298,7 +298,7 @@ def detect_roi_definition(
             column=index % config.roi_cols,
             center_x=(x0 + center_x) / width,
             center_y=(y0 + center_y) / height,
-            radius=radius / radius_scale,
+            radius=(radius * config.roi_diameter_scale) / radius_scale,
         )
         for index, (center_x, center_y, radius) in enumerate(ordered)
     )

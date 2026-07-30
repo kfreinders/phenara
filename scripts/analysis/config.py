@@ -31,6 +31,7 @@ class AnalysisConfig:
     grid_height: int | None = None
     roi_rows: int = 5
     roi_cols: int = 9
+    roi_diameter_scale: float = 1.0
     grid_margin_x: int = 0
     grid_margin_y: int = 0
     grid_cell_padding_x: int = 0
@@ -89,6 +90,10 @@ class AnalysisConfig:
         )
         if self.roi_rows > 30 or self.roi_cols > 30:
             raise ValueError("ROI rows and columns cannot exceed 30.")
+        if not math.isfinite(self.roi_diameter_scale):
+            raise ValueError("ROI diameter scale must be finite.")
+        if not 0.5 <= self.roi_diameter_scale <= 2.0:
+            raise ValueError("ROI diameter scale must be between 0.5 and 2.0.")
 
         manual_bounds = (
             self.grid_x,

@@ -82,6 +82,28 @@ def test_plantcv_grid_is_normalized_and_ordered(monkeypatch):
     assert roi.circles[1].center_x == pytest.approx(0.75)
 
 
+def test_detection_scales_roi_diameter(monkeypatch):
+    config = AnalysisConfig(
+        roi_rows=1, roi_cols=1, roi_diameter_scale=1.5
+    )
+
+    points = cv2.ellipse2Poly((50, 50), (10, 10), 0, 0, 360, 30)
+    objects = SimpleNamespace(contours=[[points.reshape(-1, 1, 2)]])
+    package = ModuleType("plantcv")
+    package.plantcv = SimpleNamespace(
+        roi=SimpleNamespace(auto_grid=lambda **_: objects)
+    )
+    monkeypatch.setitem(sys.modules, "plantcv", package)
+
+    roi = detect_roi_definition(
+        np.zeros((100, 100, 3), dtype=np.uint8),
+        np.zeros((100, 100), dtype=np.uint8),
+        config,
+    )
+
+    assert roi.circles[0].radius == pytest.approx(0.15, abs=0.005)
+
+
 def test_detection_maps_crop_local_grid_back_to_full_image(monkeypatch):
     config = AnalysisConfig(roi_rows=1, roi_cols=2)
 
