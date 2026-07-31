@@ -160,6 +160,9 @@
 .daily-progress-point--replicate { width: var(--replicate-marker-size, .7rem); height: var(--replicate-marker-size, .7rem); border-width: 1.5px; }
 .daily-progress-point:hover, .daily-progress-point:focus-visible { z-index: 3; outline: none; box-shadow: 0 2px 7px rgb(16 24 40 / 28%); transform: translate(-50%, -50%) scale(1.45); }
 .daily-progress-point--succeeded { background: #12b76a; }
+.daily-progress-point--viewable { margin: 0; padding: 0; cursor: zoom-in; appearance: none; }
+.daily-progress-point--viewable::before { display: none; }
+.daily-progress-point--viewable:hover, .daily-progress-point--viewable:focus-visible { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #039855, 0 3px 9px rgb(16 24 40 / 30%); }
 .daily-progress-point--failed { background: #d92d20; }
 .daily-progress-point--missed { background: #f79009; }
 .daily-progress-point--pending { background: #1570ef; animation: pending-progress-point 1.2s ease-in-out infinite; }
@@ -167,6 +170,13 @@
 .daily-progress-scale { position: relative; height: 1.2rem; margin-top: .65rem; color: #475467; font-size: .7rem; font-weight: 700; }
 .daily-progress-scale span { position: absolute; transform: translateX(-50%); }
 .daily-progress-scroll-hint { display: block; margin: .35rem .2rem 0; color: var(--muted); font-size: .68rem; }
+.capture-image-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 1.5rem; background: rgb(16 24 40 / 78%); backdrop-filter: blur(3px); }
+.capture-image-modal { width: min(72rem, 96vw); max-height: 94vh; overflow: hidden; border-radius: 1rem; background: #101828; box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 42%); }
+.capture-image-modal header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 1rem; color: white; background: #1d2939; }
+.capture-image-modal header span { color: #98a2b3; font-size: .7rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.capture-image-modal header h3 { margin: .15rem 0 0; color: white; font-size: 1rem; }
+.capture-image-modal header button { width: 2.25rem; height: 2.25rem; padding: 0; border: 1px solid #475467; border-radius: 50%; color: white; background: #344054; font-size: 1.45rem; line-height: 1; }
+.capture-image-modal img { display: block; width: 100%; max-height: calc(94vh - 4.5rem); object-fit: contain; background: #000; }
 .overview-card { margin: 0; }
 .section-heading h3 { margin: 0; }
 .section-heading p { margin: .25rem 0 0; }

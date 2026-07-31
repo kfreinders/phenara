@@ -191,6 +191,7 @@ def test_status_payload_groups_current_day_results_by_time_point(tmp_path):
             "replicate": 1,
             "status": "succeeded",
             "message": "ok",
+            "image_available": False,
         },
         {
             "scheduled_at": expected[1].isoformat(),
@@ -198,6 +199,7 @@ def test_status_payload_groups_current_day_results_by_time_point(tmp_path):
             "replicate": 2,
             "status": "failed",
             "message": "camera error",
+            "image_available": False,
         },
     ]
 

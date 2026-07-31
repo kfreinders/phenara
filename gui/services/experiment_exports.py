@@ -83,6 +83,46 @@ def download_path(output_root: Path, schedule: dict[str, Any]) -> Path:
     return archive
 
 
+def capture_image_path(
+    output_root: Path,
+    schedule: dict[str, Any],
+    scheduled_at: datetime,
+) -> Path:
+    """Resolve one successful capture without exposing arbitrary run files."""
+    if scheduled_at.tzinfo is None:
+        raise ExperimentExportError("The capture timestamp must include a timezone.")
+    directory, _ = experiment_paths(output_root, schedule)
+    manifest = _read_matching_manifest(directory, schedule)
+    if manifest is None or manifest.get("state") == "deleted":
+        raise ExperimentExportError("The experiment dataset is unavailable.")
+    try:
+        lines = (directory / "capture-events.jsonl").read_text().splitlines()
+    except (FileNotFoundError, OSError) as exc:
+        raise ExperimentExportError("The capture ledger is unavailable.") from exc
+
+    matching = None
+    for line in lines:
+        try:
+            event = json.loads(line)
+            event_time = datetime.fromisoformat(str(event["capture_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if event_time == scheduled_at:
+            matching = event
+    relative = (matching or {}).get("image_path")
+    if (matching or {}).get("status") != "succeeded" or not isinstance(relative, str):
+        raise ExperimentExportError("No image is available for this capture.")
+
+    image = directory / relative
+    try:
+        image.resolve().relative_to(directory.resolve())
+    except ValueError as exc:
+        raise ExperimentExportError("The capture image path is unsafe.") from exc
+    if image.is_symlink() or not image.is_file():
+        raise ExperimentExportError("The capture image is unavailable.")
+    return image
+
+
 def delete_experiment_data(
     output_root: Path,
     schedule: dict[str, Any],

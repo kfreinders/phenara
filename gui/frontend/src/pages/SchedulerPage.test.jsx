@@ -7,6 +7,7 @@ const capture = (time, replicate, status) => ({
   replicate,
   status,
   message: null,
+  image_available: status === "succeeded",
 });
 
 describe("daily capture progress", () => {

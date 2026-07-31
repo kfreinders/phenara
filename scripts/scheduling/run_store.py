@@ -382,6 +382,11 @@ class RunArchive:
                     "replicate": replicate_index + 1,
                     "status": capture_status,
                     "message": event.get("message") if event is not None else None,
+                    "image_available": bool(
+                        event is not None
+                        and event.get("status") == "succeeded"
+                        and event.get("image_path")
+                    ),
                 })
             counts = {
                 status: statuses.count(status)

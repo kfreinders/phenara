@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
@@ -13,6 +15,7 @@ from phenopi.config import (
 )
 from gui.services.experiment_exports import (
     ExperimentExportError,
+    capture_image_path,
     delete_experiment_data,
     download_path,
     export_details,
@@ -109,6 +112,25 @@ def _cancellation_pending(schedule_hash: str | None) -> bool:
 @router.get("/api/scheduler/health")
 def scheduler_health_api() -> dict:
     return read_scheduler_health(SCHEDULER_HEARTBEAT_PATH)
+
+
+@router.get("/api/scheduler/capture-image")
+def current_capture_image(
+    scheduled_at: datetime = Query(),
+) -> FileResponse:
+    status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
+    schedule = status.get("schedule")
+    if not schedule or not schedule.get("run"):
+        raise HTTPException(status_code=404, detail="No experiment image is available.")
+    try:
+        image = capture_image_path(CAPTURE_OUTPUT_ROOT, schedule, scheduled_at)
+    except ExperimentExportError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return FileResponse(
+        image,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/api/experiments/{run_id}")
