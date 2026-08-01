@@ -110,10 +110,17 @@ def capture_image_path(
         if event_time == scheduled_at:
             matching = event
     relative = (matching or {}).get("image_path")
-    if (matching or {}).get("status") != "succeeded" or not isinstance(relative, str):
+    if (matching or {}).get("status") != "succeeded":
         raise ExperimentExportError("No image is available for this capture.")
 
-    image = directory / relative
+    # Older ledgers did not always persist image_path. Capture names are derived
+    # from the scheduled timestamp, so the archive can still resolve them safely.
+    if relative is None:
+        image = directory / f"capture_{scheduled_at.strftime('%Y%m%d_%H%M%S')}.jpg"
+    elif not isinstance(relative, str):
+        raise ExperimentExportError("No image is available for this capture.")
+    else:
+        image = directory / relative
     try:
         image.resolve().relative_to(directory.resolve())
     except ValueError as exc:

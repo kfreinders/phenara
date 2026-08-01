@@ -463,7 +463,7 @@ textarea { resize: vertical; }
 @media (max-width: 600px) {
   .radio-row { align-items: flex-start; flex-direction: column; gap: .7rem; }
   .schedule-window-preview header { flex-direction: column; gap: .45rem; }
-  .schedule-window-scale span:nth-child(even) { display: none; }
+  .schedule-window-scale--dense span:nth-child(even) { display: none; }
   .custom-schedule-editor > header { flex-direction: column; }
   .custom-window { grid-template-columns: 1fr; }
   .custom-window-remove { justify-self: end; }

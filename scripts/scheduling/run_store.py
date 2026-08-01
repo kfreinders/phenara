@@ -385,7 +385,10 @@ class RunArchive:
                     "image_available": bool(
                         event is not None
                         and event.get("status") == "succeeded"
-                        and event.get("image_path")
+                        and (
+                            event.get("image_path")
+                            or self.capture_path(scheduled_at).is_file()
+                        )
                     ),
                 })
             counts = {

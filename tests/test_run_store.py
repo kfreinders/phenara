@@ -121,6 +121,16 @@ def test_capture_ledger_records_a_portable_image_path(tmp_path):
     assert event["image_path"] == "capture_20260722_120000.jpg"
 
 
+def test_daily_progress_finds_legacy_image_without_recorded_path(tmp_path):
+    archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
+    archive.capture_path(NOW).touch()
+    archive.record(scheduled_at=NOW, status="succeeded", message="ok")
+
+    capture = archive.status_payload(NOW)["daily_progress"]["points"][0]["captures"][0]
+
+    assert capture["image_available"] is True
+
+
 def test_capture_ledger_rejects_images_outside_the_run(tmp_path):
     archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
 

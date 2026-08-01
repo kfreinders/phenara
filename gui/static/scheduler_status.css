@@ -160,9 +160,10 @@
 .daily-progress-point--replicate { width: var(--replicate-marker-size, .7rem); height: var(--replicate-marker-size, .7rem); border-width: 1.5px; }
 .daily-progress-point:hover, .daily-progress-point:focus-visible { z-index: 3; outline: none; box-shadow: 0 2px 7px rgb(16 24 40 / 28%); transform: translate(-50%, -50%) scale(1.45); }
 .daily-progress-point--succeeded { background: #12b76a; }
-.daily-progress-point--viewable { margin: 0; padding: 0; cursor: zoom-in; appearance: none; }
-.daily-progress-point--viewable::before { display: none; }
+.daily-progress-point--viewable { cursor: pointer; }
+.daily-progress-point--viewable::after { content: ""; position: absolute; inset: -.3rem; border-radius: 50%; }
 .daily-progress-point--viewable:hover, .daily-progress-point--viewable:focus-visible { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #039855, 0 3px 9px rgb(16 24 40 / 30%); }
+.daily-progress-point--viewable:active { transform: translate(-50%, -50%) scale(1.25); }
 .daily-progress-point--failed { background: #d92d20; }
 .daily-progress-point--missed { background: #f79009; }
 .daily-progress-point--pending { background: #1570ef; animation: pending-progress-point 1.2s ease-in-out infinite; }

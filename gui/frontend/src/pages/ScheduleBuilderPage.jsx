@@ -158,20 +158,32 @@ export function resetScheduleForm(current, defaults, currentDate = "") {
 function ScheduleWindowPreview({ form }) {
   const preview = buildModePreview(form);
   if (!preview.valid) return <section className="schedule-window-preview schedule-window-preview--invalid" aria-live="polite"><strong>Daily time window</strong><p>{preview.message}</p></section>;
-  const left = preview.start / 14.4;
+  const scale = buildPreviewScale(preview.start, preview.end);
+  const position = minute => (minute - scale.start) / scale.duration * 100;
   return <section className="schedule-window-preview" aria-label={preview.summary} aria-live="polite">
     <header><div><strong>Daily time window</strong><p>{preview.summary}</p></div><span>{preview.captureCount} time point{preview.captureCount === 1 ? "" : "s"}</span></header>
     <div className="schedule-window-shell">
       <div className="schedule-window-axis">
-        {preview.ranges.map((range, index) => <span className="schedule-window-selection" style={{ left: `${range.start / 14.4}%`, width: `${(range.end - range.start) / 14.4}%` }} key={index} />)}
-        {preview.points.map((minute, index) => <i className="schedule-window-capture" style={{ left: `${minute / 14.4}%` }} title={`Capture at ${formatClock(minute)}`} key={index} />)}
-        {preview.center !== null && <i className="schedule-window-center" style={{ left: `${preview.center / 14.4}%` }} title={`Center time ${formatClock(preview.center)}`} />}
-        <span className="schedule-window-boundary schedule-window-boundary--start" style={{ left: `${left}%` }}>{formatClock(preview.start)}</span>
-        {preview.end !== preview.start && <span className="schedule-window-boundary schedule-window-boundary--end" style={{ left: `${preview.end / 14.4}%` }}>{formatClock(preview.end)}</span>}
+        {preview.ranges.map((range, index) => <span className="schedule-window-selection" style={{ left: `${position(range.start)}%`, width: `${(range.end - range.start) / scale.duration * 100}%` }} key={index} />)}
+        {preview.points.map((minute, index) => <i className="schedule-window-capture" style={{ left: `${position(minute)}%` }} title={`Capture at ${formatClock(minute)}`} key={index} />)}
+        {preview.center !== null && <i className="schedule-window-center" style={{ left: `${position(preview.center)}%` }} title={`Center time ${formatClock(preview.center)}`} />}
+        <span className="schedule-window-boundary schedule-window-boundary--start" style={{ left: `${position(preview.start)}%` }}>{formatClock(preview.start)}</span>
+        {preview.end !== preview.start && <span className="schedule-window-boundary schedule-window-boundary--end" style={{ left: `${position(preview.end)}%` }}>{formatClock(preview.end)}</span>}
       </div>
-      <div className="schedule-window-scale" aria-hidden="true">{[0, 360, 720, 1080, 1440].map(minute => <span style={{ left: `${minute / 14.4}%` }} key={minute}>{formatClock(minute)}</span>)}</div>
+      <div className={`schedule-window-scale${scale.ticks.length > 6 ? " schedule-window-scale--dense" : ""}`} aria-hidden="true">{scale.ticks.map(minute => <span style={{ left: `${position(minute)}%` }} key={minute}>{formatClock(minute)}</span>)}</div>
     </div>
   </section>;
+}
+
+export function buildPreviewScale(start, end) {
+  let scaleStart = Math.floor(start / 60) * 60;
+  let scaleEnd = Math.ceil(end / 60) * 60;
+  if (scaleStart === scaleEnd) {
+    if (scaleEnd < 1440) scaleEnd += 60;
+    else scaleStart -= 60;
+  }
+  const ticks = Array.from({ length: (scaleEnd - scaleStart) / 60 + 1 }, (_, index) => scaleStart + index * 60);
+  return { start: scaleStart, end: scaleEnd, duration: scaleEnd - scaleStart, ticks };
 }
 
 export function buildModePreview(form, markerLimit = 40) {

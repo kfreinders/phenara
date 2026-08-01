@@ -46,6 +46,16 @@ def test_resolves_successful_capture_from_matching_run_ledger(tmp_path):
     assert capture_image_path(tmp_path, snapshot(configured), NOW) == image
 
 
+def test_resolves_legacy_successful_capture_without_recorded_image_path(tmp_path):
+    configured = schedule()
+    archive = RunArchive(tmp_path, configured, "a" * 64, [NOW])
+    image = archive.capture_path(NOW)
+    image.write_bytes(b"jpeg")
+    archive.record(scheduled_at=NOW, status="succeeded", message="ok")
+
+    assert capture_image_path(tmp_path, snapshot(configured), NOW) == image
+
+
 def test_rejects_missing_failed_and_unsafe_capture_images(tmp_path):
     configured = schedule()
     archive = RunArchive(tmp_path, configured, "a" * 64, [NOW])

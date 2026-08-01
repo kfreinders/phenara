@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCustomSchedule, buildModePreview, nextCalendarDate, resetScheduleForm } from "./ScheduleBuilderPage";
+import { buildCustomSchedule, buildModePreview, buildPreviewScale, nextCalendarDate, resetScheduleForm } from "./ScheduleBuilderPage";
 
 describe("resetScheduleForm", () => {
   it("restores schedule defaults while preserving the analysis workflow choice", () => {
@@ -103,6 +103,29 @@ describe("buildModePreview", () => {
     expect(dense.points).toHaveLength(40);
     expect(dense.points[0]).toBe(0);
     expect(dense.points.at(-1)).toBe(1439);
+  });
+});
+
+describe("buildPreviewScale", () => {
+  it("frames a window at its surrounding integer hours", () => {
+    expect(buildPreviewScale(14 * 60, 15 * 60)).toEqual({
+      start: 14 * 60,
+      end: 15 * 60,
+      duration: 60,
+      ticks: [14 * 60, 15 * 60],
+    });
+    expect(buildPreviewScale(14 * 60 + 10, 14 * 60 + 50)).toMatchObject({
+      start: 14 * 60,
+      end: 15 * 60,
+    });
+  });
+
+  it("gives a single capture a one-hour scale", () => {
+    expect(buildPreviewScale(9 * 60, 9 * 60)).toMatchObject({
+      start: 9 * 60,
+      end: 10 * 60,
+      duration: 60,
+    });
   });
 });
 
