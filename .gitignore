@@ -38,3 +38,5 @@ docs/*.pdf
 /lib64/
 /pyvenv.cfg
 development/sample-images
+captures_control
+test_pics
