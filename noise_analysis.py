@@ -15,6 +15,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -384,7 +385,7 @@ def create_plots(
         else "± one replicate SD"
     )
     usable = predictions["included_in_noise_model"]
-    figure, axis = plt.subplots(figsize=(7, 5))
+    figure, axis = plt.subplots(figsize=(8, 6))
     axis.scatter(
         predictions.loc[usable, "mean_canopy_size"],
         predictions.loc[usable, "replicate_standard_deviation"],
@@ -420,9 +421,48 @@ def create_plots(
         linewidth=2.5,
         label="Fitted noise model",
     )
-    axis.set(xscale="log", yscale="log", xlabel="Mean canopy size",
-             ylabel=standard_deviation_label)
-    axis.legend()
+    axis.set(xscale="log", yscale="log")
+    axis.xaxis.set_major_locator(mticker.FixedLocator([3, 5, 10, 20, 30]))
+    axis.yaxis.set_major_locator(mticker.FixedLocator([0.6, 0.8, 1, 2, 3, 4]))
+    decimal_formatter = mticker.FuncFormatter(lambda value, _: f"{value:g}")
+    axis.xaxis.set_major_formatter(decimal_formatter)
+    axis.yaxis.set_major_formatter(decimal_formatter)
+    axis.xaxis.set_minor_formatter(mticker.NullFormatter())
+    axis.yaxis.set_minor_formatter(mticker.NullFormatter())
+    axis.set_xlabel("Mean canopy size", fontsize=18, fontweight="bold", labelpad=10)
+    axis.set_ylabel(
+        standard_deviation_label,
+        fontsize=18,
+        fontweight="bold",
+        labelpad=10,
+    )
+    axis.tick_params(
+        axis="both",
+        which="major",
+        labelsize=15,
+        width=2,
+        length=8,
+    )
+    axis.tick_params(
+        axis="both",
+        which="minor",
+        labelsize=15,
+        width=1.6,
+        length=5,
+    )
+    figure.canvas.draw()
+    tick_labels = (
+        *axis.get_xticklabels(),
+        *axis.get_yticklabels(),
+        *axis.get_xticklabels(minor=True),
+        *axis.get_yticklabels(minor=True),
+    )
+    for tick_label in tick_labels:
+        tick_label.set_fontsize(15)
+        tick_label.set_fontweight("bold")
+    for spine in axis.spines.values():
+        spine.set_linewidth(1.8)
+    axis.legend(prop={"size": 15, "weight": "bold"})
     _save_figure(figure, output_dir, "noise_vs_canopy_size")
 
     x = np.arange(len(predictions))
@@ -507,16 +547,43 @@ def create_plots(
         axis.set_title(
             f"{display_label} (n={int(selected.sum())})",
             loc="left",
-            fontsize=10,
+            fontsize=18,
+            fontweight="bold",
         )
+        axis.tick_params(
+            axis="both",
+            which="major",
+            labelsize=16,
+            width=2,
+            length=7,
+        )
+        for tick_label in (*axis.get_xticklabels(), *axis.get_yticklabels()):
+            tick_label.set_fontweight("bold")
+        for spine in axis.spines.values():
+            spine.set_linewidth(1.8)
     if ending_datetimes.notna().all():
         locator = mdates.AutoDateLocator(minticks=5, maxticks=12)
         axes[-1, 0].xaxis.set_major_locator(locator)
         axes[-1, 0].xaxis.set_major_formatter(
             mdates.ConciseDateFormatter(locator)
         )
-    axes[-1, 0].set_xlabel("Ending timepoint")
-    figure.supylabel("Standardized difference z", x=0.01)
+    for tick_label in axes[-1, 0].get_xticklabels():
+        tick_label.set_fontsize(16)
+        tick_label.set_fontweight("bold")
+    axes[-1, 0].set_xlabel(
+        "Ending timepoint",
+        fontsize=20,
+        fontweight="bold",
+        labelpad=12,
+    )
+    axes[-1, 0].xaxis.get_offset_text().set_fontsize(16)
+    axes[-1, 0].xaxis.get_offset_text().set_fontweight("bold")
+    figure.supylabel(
+        "Standardized difference z",
+        x=0.01,
+        fontsize=20,
+        fontweight="bold",
+    )
     _save_figure(figure, output_dir, "standardized_successive_changes")
 
 
