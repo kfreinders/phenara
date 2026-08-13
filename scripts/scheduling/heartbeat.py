@@ -38,6 +38,12 @@ class SchedulerHeartbeat:
         previous = self._load_previous_status()
         self._schedule: dict | None = previous.get("schedule")
         self._last_capture = previous.get("last_capture")
+        self._capture_details = {
+            "capture_summary": previous.get("capture_summary"),
+            "recent_captures": previous.get("recent_captures", []),
+            "daily_capture_progress": previous.get("daily_capture_progress"),
+            "analysis_summary": previous.get("analysis_summary"),
+        }
         self._last_status_content: str | None = (
             json.dumps(previous, sort_keys=True, separators=(",", ":"))
             if previous.get("version") == 1
@@ -81,6 +87,12 @@ class SchedulerHeartbeat:
                 self._schedule = schedule
                 if schedule is None:
                     self._last_capture = None
+                    self._capture_details = {
+                        "capture_summary": None,
+                        "recent_captures": [],
+                        "daily_capture_progress": None,
+                        "analysis_summary": None,
+                    }
                 elif (
                     self._last_capture is not None
                     and self._last_capture.get("schedule_hash")
@@ -112,19 +124,18 @@ class SchedulerHeartbeat:
             "version": 1,
             "schedule": self._schedule,
             "last_capture": self._last_capture,
+            **self._capture_details,
         }
         if self._capture_status_provider is not None:
             capture_status = self._capture_status_provider()
-            status["capture_summary"] = capture_status.get("summary")
-            status["recent_captures"] = capture_status.get("recent", [])
+            self._capture_details = {
+                "capture_summary": capture_status.get("summary"),
+                "recent_captures": capture_status.get("recent", []),
+                "daily_capture_progress": capture_status.get("daily_progress"),
+                "analysis_summary": capture_status.get("analysis"),
+            }
+            status.update(self._capture_details)
             status["last_capture"] = capture_status.get("last")
-            status["daily_capture_progress"] = capture_status.get("daily_progress")
-            status["analysis_summary"] = capture_status.get("analysis")
-        else:
-            status["capture_summary"] = None
-            status["recent_captures"] = []
-            status["daily_capture_progress"] = None
-            status["analysis_summary"] = None
 
         content_without_storage = json.dumps(
             status,
@@ -176,8 +187,12 @@ class SchedulerHeartbeat:
     @staticmethod
     def _atomic_write(path: Path, contents: str) -> None:
         temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-        temporary_path.write_text(contents)
-        temporary_path.replace(path)
+        try:
+            temporary_path.write_text(contents)
+            temporary_path.replace(path)
+        except OSError:
+            temporary_path.unlink(missing_ok=True)
+            raise
 
     def _load_previous_status(self) -> dict:
         """Load split status or seed it from the legacy combined heartbeat."""
@@ -192,10 +207,21 @@ class SchedulerHeartbeat:
             payload = json.loads(self.path.read_text())
             if payload.get("version") != 1:
                 return {}
+            detail_fields = {
+                "schedule",
+                "last_capture",
+                "storage",
+                "capture_summary",
+                "recent_captures",
+                "daily_capture_progress",
+                "analysis_summary",
+            }
             return {
-                "schedule": payload.get("schedule"),
-                "last_capture": payload.get("last_capture"),
-                "storage": payload.get("storage"),
+                "version": 1,
+                **{
+                    key: payload.get(key)
+                    for key in detail_fields
+                },
             }
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return {}
