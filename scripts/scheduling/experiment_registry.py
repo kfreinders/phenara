@@ -214,16 +214,22 @@ class ExperimentRegistry:
 
     def prune(self) -> None:
         with self._connect() as database:
+            terminal_count = database.execute(
+                """SELECT COUNT(*) FROM experiments WHERE state IN
+                   ('completed','cancelled','failed','superseded')"""
+            ).fetchone()[0]
+            excess = max(0, terminal_count - TERMINAL_EXPERIMENT_LIMIT)
             database.execute(
                 """
-                DELETE FROM experiments WHERE data_present=0 AND run_id IN (
+                DELETE FROM experiments WHERE run_id IN (
                     SELECT run_id FROM experiments
                     WHERE state IN ('completed','cancelled','failed','superseded')
-                    ORDER BY COALESCE(ended_at, created_at) DESC
-                    LIMIT -1 OFFSET ?
+                      AND data_present=0
+                    ORDER BY COALESCE(ended_at, created_at) ASC
+                    LIMIT ?
                 )
                 """,
-                (TERMINAL_EXPERIMENT_LIMIT,),
+                (excess,),
             )
             database.execute("PRAGMA incremental_vacuum(16)")
 

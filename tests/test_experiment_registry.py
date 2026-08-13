@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 
 from scripts.scheduling.experiment_registry import ExperimentRegistry
 from scripts.scheduling.run_store import RunArchive
@@ -78,3 +79,33 @@ def test_export_metadata_is_persisted_before_cleanup(tmp_path):
     assert row["data_present"] is True
     assert row["archive_ready"] is True
     assert row["archive_sha256"] == "e" * 64
+
+
+def test_registry_prunes_only_cleaned_records_beyond_200(tmp_path):
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    raw_run_id = str(UUID(int=1))
+    for number in range(1, 202):
+        run_id = str(UUID(int=number))
+        configured = schedule(run_id)
+        configured["run"]["created_at"] = (
+            f"2026-08-13T00:{number // 60:02d}:{number % 60:02d}+00:00"
+        )
+        registry.register(
+            schedule=configured,
+            schedule_hash=f"{number:064x}",
+            dataset_name=f"dataset-{number}",
+            state="completed",
+            ended_at=configured["run"]["created_at"],
+        )
+        if run_id != raw_run_id:
+            registry.mark_deleted(
+                run_id,
+                archive_name=f"{number}.zip",
+                archive_size_bytes=number,
+                archive_sha256=f"{number:064x}",
+                exported_at=configured["run"]["created_at"],
+                deleted_at=configured["run"]["created_at"],
+            )
+
+    assert registry.get(raw_run_id)["data_present"] is True
+    assert registry.retention()["retained_terminal_count"] == 200
