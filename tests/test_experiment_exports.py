@@ -60,6 +60,28 @@ def completed_dataset(tmp_path):
     return run_id, schedule, run
 
 
+def test_cancelled_dataset_can_be_downloaded_and_deleted(tmp_path):
+    run_id = uuid4()
+    schedule = finished_schedule(run_id)
+    run = RunArchive(
+        tmp_path,
+        configured_schedule(schedule),
+        schedule["hash"],
+        [NOW],
+    )
+    run.mark_ended("cancelled")
+    run._archive_thread.join(timeout=5)
+
+    details = export_details(tmp_path, schedule)
+
+    assert details["state"] == "cancelled"
+    assert details["archive_ready"] is True
+    assert download_path(tmp_path, schedule) == run.archive_path
+    delete_experiment_data(tmp_path, schedule)
+    assert not run.directory.exists()
+    assert not run.archive_path.exists()
+
+
 def test_only_current_finished_experiment_can_be_exported():
     run_id = uuid4()
     schedule = finished_schedule(run_id)

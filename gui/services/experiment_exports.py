@@ -15,6 +15,9 @@ class ExperimentExportError(ValueError):
     """A finished experiment cannot safely be exported or removed."""
 
 
+DOWNLOADABLE_STATES = {"completed", "cancelled"}
+
+
 def validate_finished_experiment(
     status: dict[str, Any],
     run_id: UUID,
@@ -74,8 +77,8 @@ def export_details(
 def download_path(output_root: Path, schedule: dict[str, Any]) -> Path:
     directory, archive = experiment_paths(output_root, schedule)
     manifest = _read_matching_manifest(directory, schedule)
-    if manifest is None or manifest.get("state") != "completed":
-        raise ExperimentExportError("The completed experiment data is unavailable.")
+    if manifest is None or manifest.get("state") not in DOWNLOADABLE_STATES:
+        raise ExperimentExportError("The finished experiment data is unavailable.")
     if not archive.is_file() or archive.is_symlink():
         raise ExperimentExportError(
             "The experiment archive is not ready. Please try again shortly."
@@ -136,8 +139,8 @@ def delete_experiment_data(
 ) -> None:
     directory, archive = experiment_paths(output_root, schedule)
     manifest = _read_matching_manifest(directory, schedule)
-    if manifest is None or manifest.get("state") != "completed":
-        raise ExperimentExportError("The completed experiment data is unavailable.")
+    if manifest is None or manifest.get("state") not in DOWNLOADABLE_STATES:
+        raise ExperimentExportError("The finished experiment data is unavailable.")
     if archive.is_symlink():
         raise ExperimentExportError("The experiment archive path is unsafe.")
     marker = deleted_run_marker(output_root, schedule["run"]["id"])

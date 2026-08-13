@@ -160,7 +160,7 @@ class RunArchive:
                 "deleted",
             }:
                 self._state = manifest["state"]
-                if manifest.get("state") == "completed":
+                if manifest.get("state") in {"completed", "cancelled"}:
                     self._start_download_archive()
                 return
             manifest["state"] = state
@@ -171,7 +171,7 @@ class RunArchive:
                 json.dumps(manifest, indent=2) + "\n",
             )
             self._state = state
-            if state == "completed":
+            if state in {"completed", "cancelled"}:
                 self._start_download_archive()
 
     def _start_download_archive(self) -> None:

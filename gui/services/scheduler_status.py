@@ -34,7 +34,9 @@ def build_schedule_overview(
     elapsed = [run_time for run_time in run_times if run_time < local_now]
     remaining = [run_time for run_time in run_times if run_time >= local_now]
 
-    if not run_times:
+    if snapshot.get("terminal_state") in {"completed", "cancelled"}:
+        lifecycle = "finished"
+    elif not run_times:
         lifecycle = "empty"
     elif local_now < run_times[0]:
         lifecycle = "upcoming"
@@ -77,6 +79,7 @@ def build_schedule_overview(
 
     return {
         "lifecycle": lifecycle,
+        "terminal_state": snapshot.get("terminal_state"),
         "hash": schedule_hash,
         "timezone": snapshot["timezone"],
         "start_date": start_date.isoformat(),

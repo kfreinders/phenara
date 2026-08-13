@@ -320,6 +320,7 @@ def poll_scheduler_commands(
     active_schedule_hash: str,
     heartbeat: SchedulerHeartbeat | None = None,
     run_archive: RunArchive | None = None,
+    schedule_snapshot: dict | None = None,
 ) -> None:
     """Stop the active schedule after accepting a matching cancellation request."""
     command_path = config.runtime_dir / SCHEDULER_COMMAND_FILENAME
@@ -352,10 +353,15 @@ def poll_scheduler_commands(
         print(f"[scheduler] Could not clear accepted scheduler command: {exc}")
     if heartbeat is not None:
         heartbeat.set_capture_status_provider(None)
+        finished_schedule = (
+            {**schedule_snapshot, "terminal_state": "cancelled"}
+            if schedule_snapshot is not None
+            else None
+        )
         heartbeat.set_state(
             "waiting_for_schedule",
             "The active experiment was stopped by the operator.",
-            schedule=None,
+            schedule=finished_schedule,
         )
     print("[scheduler] Active experiment stopped by operator request.")
     scheduler.shutdown(wait=False)
@@ -488,6 +494,7 @@ def run_scheduler_until_reload(
             EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
         )
 
+    schedule_snapshot = build_schedule_snapshot(cfg, schedule_hash, tz)
     scheduler.add_job(
         poll_schedule_for_changes,
         trigger="interval",
@@ -502,7 +509,14 @@ def run_scheduler_until_reload(
         poll_scheduler_commands,
         trigger="interval",
         seconds=2,
-        args=[scheduler, config, schedule_hash, heartbeat, run_archive],
+        args=[
+            scheduler,
+            config,
+            schedule_hash,
+            heartbeat,
+            run_archive,
+            schedule_snapshot,
+        ],
         id="poll_commands",
         max_instances=1,
         replace_existing=True,
@@ -575,7 +589,7 @@ def run_scheduler_until_reload(
         heartbeat.set_state(
             "running",
             "The scheduler is running with a valid schedule.",
-            schedule=build_schedule_snapshot(cfg, schedule_hash, tz),
+            schedule=schedule_snapshot,
         )
         scheduler.add_job(
             heartbeat.write,
@@ -655,7 +669,6 @@ def wait_for_schedule(
             heartbeat.set_state(
                 "waiting_for_schedule",
                 "The scheduler is waiting for a schedule file.",
-                schedule=None,
             )
         print(
             "[scheduler] No schedule file found at "

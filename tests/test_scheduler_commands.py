@@ -63,7 +63,12 @@ def test_scheduler_accepts_only_matching_cancellation_request(tmp_path):
     request_schedule_cancellation(tmp_path / "scheduler-command.json", schedule_hash)
 
     scheduler_module.poll_scheduler_commands(
-        scheduler, config, schedule_hash, heartbeat, archive
+        scheduler,
+        config,
+        schedule_hash,
+        heartbeat,
+        archive,
+        {"hash": schedule_hash, "run": {"id": "run-id"}},
     )
 
     assert scheduler.shutdown_calls == [False]
@@ -73,7 +78,11 @@ def test_scheduler_accepts_only_matching_cancellation_request(tmp_path):
     assert not (tmp_path / "scheduler-command.json").exists()
     assert heartbeat.provider is None
     assert heartbeat.states[-1][0] == "waiting_for_schedule"
-    assert heartbeat.states[-1][2] is None
+    assert heartbeat.states[-1][2] == {
+        "hash": schedule_hash,
+        "run": {"id": "run-id"},
+        "terminal_state": "cancelled",
+    }
 
 
 def test_scheduler_ignores_request_for_a_different_schedule(tmp_path):

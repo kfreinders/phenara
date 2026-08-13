@@ -13,8 +13,9 @@ function NextAction({ schedule, draftState, summary, analysis }) {
   if (draftState === "invalid") return <section className="card schedule-action"><div><span className="eyebrow">Schedule draft</span><h3>Draft needs attention</h3><p>Open the schedule builder to correct the saved draft.</p></div><Link className="primary-link" to="/schedule">Open schedule builder</Link></section>;
   if (schedule?.lifecycle !== "finished") return null;
   if (analysis && (analysis.pending > 0 || analysis.running > 0)) return <section className="card schedule-action"><div><span className="eyebrow">Finishing experiment</span><h3>Analyzing captured images</h3><p>The download will become available after the remaining image analysis completes.</p></div><strong>{analysis.succeeded} / {analysis.total}</strong></section>;
+  const cancelled = schedule.terminal_state === "cancelled";
   const issues = summary && summary.failed + summary.missed + summary.elapsed_unreported > 0;
-  return <section className="card schedule-action"><div><span className="eyebrow">Experiment complete</span><h3>{issues ? "Experiment finished with capture issues" : "Experiment finished"}</h3><p>{issues ? "Review the outcomes, then download the experiment data." : "Download the completed dataset to your computer."}</p></div><Link className="primary-link" to={`/experiments/${schedule.run.id}`}>Download experiment data</Link></section>;
+  return <section className="card schedule-action"><div><span className="eyebrow">{cancelled ? "Experiment cancelled" : "Experiment complete"}</span><h3>{cancelled ? "Cancelled run data is available" : issues ? "Experiment finished with capture issues" : "Experiment finished"}</h3><p>{cancelled ? "Download any data collected before the run was cancelled." : issues ? "Review the outcomes, then download the experiment data." : "Download the completed dataset to your computer."}</p></div><Link className="primary-link" to={`/experiments/${schedule.run.id}`}>Download experiment data</Link></section>;
 }
 
 export function SchedulerPage() {

@@ -250,11 +250,13 @@ def test_run_can_be_marked_cancelled(tmp_path):
     archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
 
     archive.mark_ended("cancelled")
+    archive._archive_thread.join(timeout=5)
 
     manifest = json.loads(archive.manifest_path.read_text())
     assert manifest["state"] == "cancelled"
     assert manifest["ended_at"] is not None
     assert manifest["superseded_by"] is None
+    assert archive.archive_path.exists()
 
 
 def test_completed_run_creates_portable_zip_archive(tmp_path):
