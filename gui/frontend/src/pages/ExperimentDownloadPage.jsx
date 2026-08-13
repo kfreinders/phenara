@@ -52,8 +52,9 @@ export function ExperimentDownloadPage() {
   if (!data && !error) return <Loading label="Preparing experiment download" />;
   if (!data) return <ErrorNotice error={error} />;
   const nameMatches = confirmation === data.run.name;
+  const metadataOnly = !data.data_present;
   return <section className="download-page">
-    <div className="react-page-heading"><span className="eyebrow">Finished experiment</span><h2>Download experiment data</h2><p>Save the complete dataset to the attached computer before clearing it from Phenopi.</p></div>
+    <div className="react-page-heading"><span className="eyebrow">Finished experiment</span><h2>{metadataOnly ? "Experiment record" : "Download experiment data"}</h2><p>{metadataOnly ? "The raw files were exported and removed; reproducible experiment metadata remains in Phenopi." : "Save the complete dataset to the attached computer before clearing it from Phenopi."}</p></div>
     {error && <ErrorNotice error={error} />}
     <section className="card download-summary">
       <div><span>Experiment</span><strong>{data.run.name}</strong><small>{data.start_date.replaceAll("-", "/")} → {data.end_date.replaceAll("-", "/")}{data.run.researcher ? ` · ${data.run.researcher}` : ""}</small></div>
@@ -73,5 +74,6 @@ export function ExperimentDownloadPage() {
     </section>}
     {deleted && <section className="card cleanup-complete"><span aria-hidden="true">✓</span><div><h3>Local experiment data deleted</h3><p>The copy on Phenopi has been removed. Keep your downloaded archive safe.</p></div><Link className="primary-link" to="/schedule">Create next schedule</Link></section>}
     {!downloadStarted && !deleted && <Link className="button-link secondary" to="/scheduler">Back to scheduler overview</Link>}
+    {metadataOnly && <Link className="button-link secondary" to="/experiments">Back to experiment history</Link>}
   </section>;
 }

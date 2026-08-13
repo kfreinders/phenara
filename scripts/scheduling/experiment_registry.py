@@ -192,14 +192,33 @@ class ExperimentRegistry:
             )
         self.prune()
 
+    def record_export(
+        self,
+        run_id: str,
+        *,
+        archive_name: str,
+        archive_size_bytes: int,
+        archive_sha256: str,
+        exported_at: str,
+    ) -> None:
+        with self._connect() as database:
+            database.execute(
+                """UPDATE experiments SET archive_ready=1, archive_name=?,
+                   archive_size_bytes=?, archive_sha256=?, exported_at=?,
+                   updated_at=? WHERE run_id=?""",
+                (
+                    archive_name, archive_size_bytes, archive_sha256,
+                    exported_at, exported_at, run_id,
+                ),
+            )
+
     def prune(self) -> None:
         with self._connect() as database:
             database.execute(
                 """
-                DELETE FROM experiments WHERE run_id IN (
+                DELETE FROM experiments WHERE data_present=0 AND run_id IN (
                     SELECT run_id FROM experiments
                     WHERE state IN ('completed','cancelled','failed','superseded')
-                      AND data_present=0
                     ORDER BY COALESCE(ended_at, created_at) DESC
                     LIMIT -1 OFFSET ?
                 )
@@ -223,8 +242,38 @@ class ExperimentRegistry:
                     ended_at=manifest.get("ended_at"),
                     superseded_by=manifest.get("superseded_by"),
                 )
+                if manifest.get("state") in TERMINAL_STATES:
+                    self.update_terminal(
+                        manifest["run"]["id"],
+                        state=manifest["state"],
+                        ended_at=manifest.get("ended_at") or manifest["loaded_at"],
+                        capture_summary=_capture_summary(
+                            manifest_path.parent / "capture-events.jsonl",
+                            manifest["schedule"],
+                        ),
+                        superseded_by=manifest.get("superseded_by"),
+                    )
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 warnings.append(f"{manifest_path.parent.name}: {exc}")
+        deleted_root = output_root / ".phenopi-deleted-runs"
+        for marker_path in deleted_root.glob("*.json") if deleted_root.exists() else []:
+            try:
+                marker = json.loads(marker_path.read_text())
+                row = self.get(str(marker["run_id"]))
+                if row is not None and row["data_present"] and row["exported_at"]:
+                    with self._connect() as database:
+                        database.execute(
+                            """UPDATE experiments SET data_present=0,
+                               archive_ready=0, deleted_at=?, updated_at=?
+                               WHERE run_id=?""",
+                            (
+                                marker["deleted_at"], marker["deleted_at"],
+                                marker["run_id"],
+                            ),
+                        )
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                warnings.append(f"{marker_path.name}: {exc}")
+        self.prune()
         return warnings
 
 
@@ -233,6 +282,29 @@ def _end_date(schedule: dict[str, Any]) -> str:
 
     start = date.fromisoformat(str(schedule["start_date"]))
     return (start + timedelta(days=int(schedule["num_days"]) - 1)).isoformat()
+
+
+def _capture_summary(path: Path, schedule: dict[str, Any]) -> dict[str, int]:
+    counts = {"succeeded": 0, "failed": 0, "missed": 0}
+    try:
+        lines = path.read_text().splitlines()
+    except FileNotFoundError:
+        lines = []
+    latest = {}
+    for line in lines:
+        try:
+            event = json.loads(line)
+            if event.get("status") in counts:
+                latest[event["capture_id"]] = event["status"]
+        except (ValueError, TypeError, KeyError):
+            continue
+    for state in latest.values():
+        counts[state] += 1
+    time_points = sum(
+        len(values) for values in (schedule.get("daily_times") or {}).values()
+    ) or len(schedule.get("times", [])) * int(schedule.get("num_days", 0))
+    total = time_points * int(schedule.get("replicates", 1))
+    return {"total": total, **counts}
 
 
 def _row_payload(row: sqlite3.Row) -> dict[str, Any]:

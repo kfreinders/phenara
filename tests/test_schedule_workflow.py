@@ -64,6 +64,7 @@ def configure_paths(monkeypatch, tmp_path):
     monkeypatch.setattr(schedule_api, "SCHEDULE_DRAFT_PATH", draft)
     monkeypatch.setattr(schedule_api, "DEFAULT_SCHEDULE_PATH", schedule)
     monkeypatch.setattr(schedule_api, "SCHEDULER_HEARTBEAT_PATH", heartbeat)
+    monkeypatch.setattr(schedule_api, "CAPTURE_OUTPUT_ROOT", tmp_path / "captures")
     return draft, schedule, heartbeat
 
 
@@ -348,7 +349,7 @@ def test_identical_active_schedule_is_prominent_and_needs_no_activation(tmp_path
     assert not draft_path.exists()
 
 
-def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path, monkeypatch):
+def test_active_schedule_must_be_cancelled_before_new_activation(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
     record_camera_preview(draft_path)
@@ -364,16 +365,15 @@ def test_active_schedule_requires_confirmation_before_atomic_promotion(tmp_path,
     })
     request = schedule_api.ActivationRequest(draft_hash=draft.schedule_hash)
 
-    warning = schedule_api.activate_schedule(request)
-    activated = schedule_api.activate_schedule(request.model_copy(update={"confirm_active_replacement": True}))
+    with pytest.raises(HTTPException, match="Cancel the current experiment") as blocked:
+        schedule_api.activate_schedule(request)
 
-    assert warning["confirmation_required"] is True
-    assert not draft_path.exists()
-    assert schedule_path.exists()
-    assert activated["schedule_hash"] == draft.schedule_hash
+    assert blocked.value.status_code == 409
+    assert draft_path.exists()
+    assert not schedule_path.exists()
 
 
-def test_upcoming_schedule_requires_confirmation_before_replacement(tmp_path, monkeypatch):
+def test_upcoming_schedule_must_be_cancelled_before_new_activation(tmp_path, monkeypatch):
     draft_path, schedule_path, heartbeat = configure_paths(monkeypatch, tmp_path)
     draft = persist_schedule_draft(schedule_form_data(), draft_path)
     record_camera_preview(draft_path)
@@ -389,10 +389,10 @@ def test_upcoming_schedule_requires_confirmation_before_replacement(tmp_path, mo
     })
     request = schedule_api.ActivationRequest(draft_hash=draft.schedule_hash)
 
-    warning = schedule_api.activate_schedule(request)
+    with pytest.raises(HTTPException, match="Cancel the current experiment") as blocked:
+        schedule_api.activate_schedule(request)
 
-    assert warning["confirmation_required"] is True
-    assert warning["review"]["replacing_schedule"] is True
+    assert blocked.value.status_code == 409
     assert draft_path.exists()
     assert not schedule_path.exists()
 

@@ -63,3 +63,18 @@ def test_empty_superseded_run_is_not_retained(tmp_path):
     archive.mark_ended("superseded", superseded_by="replacement")
 
     assert registry.get(schedule()["run"]["id"]) is None
+
+
+def test_export_metadata_is_persisted_before_cleanup(tmp_path):
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    registry.register(schedule=schedule(), schedule_hash="a" * 64,
+                      dataset_name="dataset", state="completed", ended_at=NOW)
+
+    registry.record_export(schedule()["run"]["id"], archive_name="run.zip",
+                           archive_size_bytes=20, archive_sha256="e" * 64,
+                           exported_at=NOW)
+
+    row = registry.get(schedule()["run"]["id"])
+    assert row["data_present"] is True
+    assert row["archive_ready"] is True
+    assert row["archive_sha256"] == "e" * 64

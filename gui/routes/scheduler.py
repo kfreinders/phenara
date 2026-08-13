@@ -218,11 +218,18 @@ def remove_finished_experiment(
         archive_size = archive.stat().st_size
         archive_sha256 = _sha256(archive)
         archive_name = archive.name
-        delete_experiment_data(CAPTURE_OUTPUT_ROOT, schedule)
         now = datetime.now(timezone.utc).isoformat()
         registry = ExperimentRegistry(
             SCHEDULER_HEARTBEAT_PATH.parent / REGISTRY_FILENAME
         )
+        registry.record_export(
+            str(run_id),
+            archive_name=archive_name,
+            archive_size_bytes=archive_size,
+            archive_sha256=archive_sha256,
+            exported_at=now,
+        )
+        delete_experiment_data(CAPTURE_OUTPUT_ROOT, schedule)
         registry.mark_deleted(
             str(run_id),
             archive_name=archive_name,

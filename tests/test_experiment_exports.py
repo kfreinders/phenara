@@ -14,6 +14,7 @@ from gui.services.experiment_exports import (
     validate_finished_experiment,
 )
 from scripts.scheduling.run_store import RunArchive, deleted_run_marker
+from scripts.scheduling.experiment_registry import ExperimentRegistry, REGISTRY_FILENAME
 
 
 NOW = datetime(2026, 7, 22, 12, tzinfo=timezone.utc)
@@ -207,3 +208,33 @@ def test_legacy_fully_deleted_run_does_not_block_replacement(tmp_path):
     run.directory.rmdir()
 
     run.mark_ended("completed")
+
+
+def test_experiment_history_lists_cleaned_metadata(tmp_path, monkeypatch):
+    run_id, schedule, run = completed_dataset(tmp_path)
+    registry_path = tmp_path / "runtime" / REGISTRY_FILENAME
+    registry = ExperimentRegistry(registry_path)
+    registry.register(
+        schedule=configured_schedule(schedule),
+        schedule_hash=schedule["hash"],
+        dataset_name=run.directory.name,
+        state="completed",
+        ended_at=NOW.isoformat(),
+    )
+    delete_experiment_data(tmp_path, schedule)
+    registry.mark_deleted(
+        str(run_id), archive_name=run.archive_path.name,
+        archive_size_bytes=12, archive_sha256="f" * 64,
+        exported_at=NOW.isoformat(), deleted_at=NOW.isoformat(),
+    )
+    monkeypatch.setattr(scheduler_routes, "CAPTURE_OUTPUT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        scheduler_routes,
+        "SCHEDULER_HEARTBEAT_PATH",
+        registry_path.with_name("scheduler-heartbeat.json"),
+    )
+
+    payload = scheduler_routes.list_experiments()
+
+    assert payload["experiments"][0]["run_id"] == str(run_id)
+    assert payload["experiments"][0]["data_present"] is False
