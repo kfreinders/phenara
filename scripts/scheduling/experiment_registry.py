@@ -146,6 +146,10 @@ class ExperimentRegistry:
             ).fetchone()
         return _row_payload(row) if row else None
 
+    def remove(self, run_id: str) -> None:
+        with self._connect() as database:
+            database.execute("DELETE FROM experiments WHERE run_id=?", (run_id,))
+
     def list(self) -> list[dict[str, Any]]:
         with self._connect() as database:
             rows = database.execute(

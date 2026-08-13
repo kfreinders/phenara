@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from scripts.scheduling.experiment_registry import ExperimentRegistry
+from scripts.scheduling.run_store import RunArchive
 
 
 NOW = datetime(2026, 8, 13, tzinfo=timezone.utc).isoformat()
@@ -40,3 +41,25 @@ def test_deleted_metadata_is_retained_without_raw_data(tmp_path):
     assert row["data_present"] is False
     assert row["archive_sha256"] == "f" * 64
     assert registry.retention()["can_activate"] is True
+
+
+def test_run_archive_records_terminal_outcome(tmp_path):
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    archive = RunArchive(
+        tmp_path / "captures", schedule(), "a" * 64, [], registry
+    )
+    archive.mark_ended("cancelled")
+
+    row = registry.get(schedule()["run"]["id"])
+    assert row["state"] == "cancelled"
+    assert row["capture_summary"]["total"] == 0
+
+
+def test_empty_superseded_run_is_not_retained(tmp_path):
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    archive = RunArchive(
+        tmp_path / "captures", schedule(), "a" * 64, [], registry
+    )
+    archive.mark_ended("superseded", superseded_by="replacement")
+
+    assert registry.get(schedule()["run"]["id"]) is None

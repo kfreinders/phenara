@@ -12,6 +12,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from .make_schedule import atomic_write_text
 from .schedule import RunMetadata, Schedule
+from .experiment_registry import ExperimentRegistry
 
 
 RUN_MANIFEST_VERSION = 1
@@ -50,6 +51,7 @@ class RunArchive:
         schedule: dict[str, Any] | Schedule,
         schedule_hash: str,
         expected_times: list[datetime],
+        registry: ExperimentRegistry | None = None,
     ) -> None:
         schedule_data = schedule.to_dict() if isinstance(schedule, Schedule) else schedule
         run = validate_run_metadata(schedule_data.get("run"))
@@ -61,6 +63,7 @@ class RunArchive:
         )
         self.schedule_hash = schedule_hash
         self.expected_times = expected_times
+        self.registry = registry
         self.directory = output_root / run_directory_name(schedule_data["start_date"], run)
         self.manifest_path = self.directory / "run.json"
         self.events_path = self.directory / "capture-events.jsonl"
@@ -71,6 +74,17 @@ class RunArchive:
         self._archive_thread: Thread | None = None
         self._state = "active"
         self._initialize(schedule_data)
+        if self.registry is not None and self._state != "deleted":
+            manifest = self._read_manifest()
+            self.registry.register(
+                schedule=self.schedule.to_dict(),
+                schedule_hash=self.schedule_hash,
+                dataset_name=self.directory.name,
+                state=self._state,
+                loaded_at=manifest.get("loaded_at"),
+                ended_at=manifest.get("ended_at"),
+                superseded_by=manifest.get("superseded_by"),
+            )
 
     def _initialize(self, schedule: dict[str, Any]) -> None:
         if deleted_run_marker(self.directory.parent, self.run["id"]).is_file():
@@ -171,6 +185,22 @@ class RunArchive:
                 json.dumps(manifest, indent=2) + "\n",
             )
             self._state = state
+            if self.registry is not None:
+                if state == "superseded" and not self.events():
+                    self.registry.remove(self.run["id"])
+                else:
+                    now = (
+                        datetime.now(self.expected_times[0].tzinfo)
+                        if self.expected_times
+                        else datetime.now(timezone.utc)
+                    )
+                    self.registry.update_terminal(
+                        self.run["id"],
+                        state=state,
+                        ended_at=manifest["ended_at"],
+                        capture_summary=self.status_payload(now)["summary"],
+                        superseded_by=superseded_by,
+                    )
             if state in {"completed", "cancelled"}:
                 self._start_download_archive()
 
