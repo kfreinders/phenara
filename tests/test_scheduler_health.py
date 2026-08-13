@@ -35,16 +35,24 @@ def write_heartbeat(
     path.write_text(
         json.dumps(
             {
-                "version": 1,
+                "version": 2,
                 "timestamp": (NOW - timedelta(seconds=age_seconds)).isoformat(),
                 "state": state,
                 "message": message,
+            }
+        )
+    )
+    path.with_name("scheduler-status.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
                 "schedule": schedule,
                 "last_capture": last_capture,
                 "storage": storage,
                 "capture_summary": capture_summary,
                 "analysis_summary": analysis_summary,
                 "recent_captures": recent_captures or [],
+                "daily_capture_progress": None,
             }
         )
     )
@@ -56,12 +64,12 @@ def test_heartbeat_atomically_writes_current_state(tmp_path):
     assert heartbeat.set_state("running", "Scheduler is running.") is True
 
     payload = json.loads(heartbeat.path.read_text())
-    assert payload["version"] == 1
+    assert payload["version"] == 2
     assert payload["state"] == "running"
     assert payload["message"] == "Scheduler is running."
-    assert payload["schedule"] is None
+    assert set(payload) == {"version", "timestamp", "state", "message"}
     assert payload["timestamp"].endswith("+00:00")
-    assert list(tmp_path.iterdir()) == [heartbeat.path]
+    assert set(tmp_path.iterdir()) == {heartbeat.path, heartbeat.status_path}
 
 
 def test_heartbeat_rejects_unknown_state(tmp_path):
@@ -75,14 +83,14 @@ def test_heartbeat_retains_or_clears_loaded_schedule(tmp_path):
     heartbeat.set_state("running", "running", schedule=snapshot)
 
     heartbeat.set_state("invalid_schedule", "rejected edit")
-    assert json.loads(heartbeat.path.read_text())["schedule"] == snapshot
+    assert json.loads(heartbeat.status_path.read_text())["schedule"] == snapshot
 
     heartbeat.set_state(
         "waiting_for_schedule",
         "waiting",
         schedule=None,
     )
-    assert json.loads(heartbeat.path.read_text())["schedule"] is None
+    assert json.loads(heartbeat.status_path.read_text())["schedule"] is None
 
 
 def test_heartbeat_write_failure_is_non_fatal(tmp_path):
@@ -99,7 +107,7 @@ def test_heartbeat_reports_capture_storage(tmp_path, monkeypatch):
 
     heartbeat.write()
 
-    storage = json.loads(heartbeat.path.read_text())["storage"]
+    storage = json.loads(heartbeat.status_path.read_text())["storage"]
     assert storage == {
         "total_bytes": 1000,
         "used_bytes": 600,
@@ -132,7 +140,7 @@ def test_heartbeat_publishes_capture_ledger_summary(tmp_path):
 
     heartbeat.write()
 
-    payload = json.loads(heartbeat.path.read_text())
+    payload = json.loads(heartbeat.status_path.read_text())
     assert payload["capture_summary"] == summary
     assert payload["recent_captures"] == recent
     assert payload["last_capture"] == recent[0]
@@ -146,13 +154,13 @@ def test_heartbeat_restores_capture_for_same_schedule(tmp_path):
         "status": "succeeded",
     }
     (tmp_path / "scheduler-heartbeat.json").write_text(
-        json.dumps({"last_capture": previous})
+        json.dumps({"version": 1, "last_capture": previous})
     )
     heartbeat = SchedulerHeartbeat(tmp_path)
 
     heartbeat.set_state("running", "running", schedule=schedule_snapshot())
 
-    assert json.loads(heartbeat.path.read_text())["last_capture"] == previous
+    assert json.loads(heartbeat.status_path.read_text())["last_capture"] == previous
 
 
 def test_heartbeat_clears_capture_for_replacement_schedule(tmp_path):
@@ -161,7 +169,7 @@ def test_heartbeat_clears_capture_for_replacement_schedule(tmp_path):
 
     heartbeat.set_state("running", "running", schedule=schedule_snapshot())
 
-    assert json.loads(heartbeat.path.read_text())["last_capture"] is None
+    assert json.loads(heartbeat.status_path.read_text())["last_capture"] is None
 
 
 @pytest.mark.parametrize(

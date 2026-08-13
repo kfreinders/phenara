@@ -8,6 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from scripts.scheduling.heartbeat import HEARTBEAT_STATES
+from scripts.scheduling.heartbeat import STATUS_FILENAME
 from scripts.scheduling.schedule import Schedule
 from gui.services.storage_estimate import estimate_storage_bytes
 
@@ -205,11 +206,15 @@ def read_scheduler_status(
     )
     if heartbeat is None:
         return _unavailable_status()
-    payload, health = heartbeat
+    _, health = heartbeat
+    details = _read_scheduler_details(heartbeat_path)
 
     overview = None
     schedule_error = None
-    snapshot = payload.get("schedule")
+    if details is None:
+        schedule_error = "Detailed scheduler status is unavailable."
+        details = {}
+    snapshot = details.get("schedule")
     if snapshot is not None:
         try:
             overview = build_schedule_overview(snapshot, now=current_time)
@@ -222,14 +227,14 @@ def read_scheduler_status(
         "schedule_error": schedule_error,
         "schedule_is_last_reported": health["status"] == "stale"
         and overview is not None,
-        "last_capture": _optional_dict(payload.get("last_capture")),
-        "capture_summary": _optional_dict(payload.get("capture_summary")),
-        "recent_captures": _dict_list(payload.get("recent_captures")),
+        "last_capture": _optional_dict(details.get("last_capture")),
+        "capture_summary": _optional_dict(details.get("capture_summary")),
+        "recent_captures": _dict_list(details.get("recent_captures")),
         "daily_capture_progress": _optional_dict(
-            payload.get("daily_capture_progress")
+            details.get("daily_capture_progress")
         ),
-        "analysis_summary": _optional_dict(payload.get("analysis_summary")),
-        "storage": _optional_dict(payload.get("storage")),
+        "analysis_summary": _optional_dict(details.get("analysis_summary")),
+        "storage": _optional_dict(details.get("storage")),
     }
 
 
@@ -259,7 +264,7 @@ def _read_heartbeat(
         timestamp = datetime.fromisoformat(payload["timestamp"])
         state = payload["state"]
         message = payload["message"]
-        if payload.get("version") != 1 or timestamp.tzinfo is None:
+        if payload.get("version") != 2 or timestamp.tzinfo is None:
             raise ValueError("unsupported heartbeat")
         if state not in HEARTBEAT_STATES or not isinstance(message, str):
             raise ValueError("invalid heartbeat state")
@@ -286,6 +291,17 @@ def _read_heartbeat(
         "age_seconds": round(age_seconds, 1),
         "message": message,
     }
+
+
+def _read_scheduler_details(heartbeat_path: Path) -> dict[str, Any] | None:
+    status_path = heartbeat_path.with_name(STATUS_FILENAME)
+    try:
+        payload = json.loads(status_path.read_text())
+        if payload.get("version") != 1:
+            raise ValueError("unsupported scheduler status")
+        return payload
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
 
 
 def _unavailable_status() -> dict[str, Any]:

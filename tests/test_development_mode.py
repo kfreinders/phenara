@@ -16,10 +16,13 @@ from phenopi.development import (
 
 def write_waiting_heartbeat(path):
     path.write_text(json.dumps({
-        "version": 1,
+        "version": 2,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "state": "waiting_for_schedule",
         "message": "Waiting for schedule.",
+    }))
+    path.with_name("scheduler-status.json").write_text(json.dumps({
+        "version": 1,
         "schedule": None,
     }))
 

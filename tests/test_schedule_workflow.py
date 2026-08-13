@@ -44,10 +44,13 @@ def schedule_form_data(**updates) -> ScheduleFormData:
 def write_heartbeat(path, *, age_seconds=0, state="waiting_for_schedule", schedule=None, storage=None):
     timestamp = datetime.now(timezone.utc).timestamp() - age_seconds
     path.write_text(json.dumps({
-        "version": 1,
+        "version": 2,
         "timestamp": datetime.fromtimestamp(timestamp, timezone.utc).isoformat(),
         "state": state,
         "message": "test scheduler state",
+    }))
+    path.with_name("scheduler-status.json").write_text(json.dumps({
+        "version": 1,
         "schedule": schedule,
         "last_capture": None,
         "storage": storage,
