@@ -21,7 +21,6 @@ from gui.services.experiment_exports import (
     delete_experiment_data,
     download_path,
     export_details,
-    validate_finished_experiment,
 )
 from gui.services.schedule_drafts import load_current_schedule_draft
 from gui.services.scheduler_status import (
@@ -137,16 +136,45 @@ def current_capture_image(
     )
 
 
+@router.get("/api/experiments")
+def list_experiments() -> dict:
+    registry = _registry()
+    warnings = registry.reconcile(CAPTURE_OUTPUT_ROOT)
+    retention = registry.retention()
+    experiments = []
+    for row in registry.list():
+        experiments.append({
+            key: row.get(key)
+            for key in (
+                "run_id", "name", "researcher", "start_date", "end_date",
+                "state", "created_at", "ended_at", "capture_summary",
+                "analysis_summary", "data_present", "archive_name",
+                "archive_size_bytes", "archive_sha256", "exported_at",
+                "deleted_at",
+            )
+        })
+    return {
+        "experiments": experiments,
+        **{key: value for key, value in retention.items() if key != "raw_data_blockers"},
+        "raw_data_blocker_ids": [
+            row["run_id"] for row in retention["raw_data_blockers"]
+        ],
+        "warnings": warnings,
+    }
+
+
 @router.get("/api/experiments/{run_id}")
 def finished_experiment(run_id: UUID) -> dict:
     schedule = _finished_schedule(run_id)
+    row = _registry().get(str(run_id))
+    if row is not None and not row["data_present"]:
+        return _registry_details(row)
     try:
         details = export_details(CAPTURE_OUTPUT_ROOT, schedule)
     except ExperimentExportError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    details["capture_summary"] = read_scheduler_status(
-        SCHEDULER_HEARTBEAT_PATH
-    ).get("capture_summary")
+    details["capture_summary"] = (row or {}).get("capture_summary")
+    details["analysis_summary"] = (row or {}).get("analysis_summary")
     return details
 
 
@@ -221,16 +249,46 @@ def _sha256(path) -> str:
 
 
 def _finished_schedule(run_id: UUID) -> dict:
-    status = read_scheduler_status(SCHEDULER_HEARTBEAT_PATH)
-    try:
-        schedule = validate_finished_experiment(status, run_id)
-        if export_details(CAPTURE_OUTPUT_ROOT, schedule)["state"] == "deleted":
-            raise ExperimentExportError(
-                "This finished experiment is no longer available."
-            )
-        return schedule
-    except ExperimentExportError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    registry = _registry()
+    registry.reconcile(CAPTURE_OUTPUT_ROOT)
+    row = registry.get(str(run_id))
+    if row is None or row["state"] not in {"completed", "cancelled", "failed", "superseded"}:
+        raise HTTPException(
+            status_code=404,
+            detail="This finished experiment is no longer available.",
+        )
+    schedule = {
+        **row["schedule"],
+        "hash": row["schedule_hash"],
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "lifecycle": "finished",
+    }
+    return schedule
+
+
+def _registry() -> ExperimentRegistry:
+    return ExperimentRegistry(SCHEDULER_HEARTBEAT_PATH.parent / REGISTRY_FILENAME)
+
+
+def _registry_details(row: dict) -> dict:
+    return {
+        "run": row["schedule"]["run"],
+        "schedule": row["schedule"],
+        "schedule_hash": row["schedule_hash"],
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "state": row["state"],
+        "capture_summary": row["capture_summary"],
+        "analysis_summary": row["analysis_summary"],
+        "archive_ready": False,
+        "archive_size_bytes": row["archive_size_bytes"],
+        "archive_sha256": row["archive_sha256"],
+        "archive_name": row["archive_name"],
+        "data_present": False,
+        "exported_at": row["exported_at"],
+        "deleted_at": row["deleted_at"],
+    }
 
 
 def _hide_deleted_finished_experiment(status: dict) -> dict:
