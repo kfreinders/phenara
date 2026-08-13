@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
+from datetime import timezone
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -30,6 +32,7 @@ from scripts.scheduling.commands import (
     read_schedule_cancellation,
     request_schedule_cancellation,
 )
+from scripts.scheduling.experiment_registry import ExperimentRegistry, REGISTRY_FILENAME
 
 
 router = APIRouter()
@@ -46,6 +49,7 @@ class ExperimentDeletionRequest(BaseModel):
 
     schedule_hash: str
     experiment_name: str
+    archive_saved_confirmed: bool = False
 
 
 def schedule_draft_state() -> str:
@@ -176,8 +180,29 @@ def remove_finished_experiment(
             status_code=409,
             detail="The deletion confirmation does not match this experiment.",
         )
+    if not request.archive_saved_confirmed:
+        raise HTTPException(
+            status_code=409,
+            detail="Confirm that the downloaded archive was saved before deletion.",
+        )
     try:
+        archive = download_path(CAPTURE_OUTPUT_ROOT, schedule)
+        archive_size = archive.stat().st_size
+        archive_sha256 = _sha256(archive)
+        archive_name = archive.name
         delete_experiment_data(CAPTURE_OUTPUT_ROOT, schedule)
+        now = datetime.now(timezone.utc).isoformat()
+        registry = ExperimentRegistry(
+            SCHEDULER_HEARTBEAT_PATH.parent / REGISTRY_FILENAME
+        )
+        registry.mark_deleted(
+            str(run_id),
+            archive_name=archive_name,
+            archive_size_bytes=archive_size,
+            archive_sha256=archive_sha256,
+            exported_at=now,
+            deleted_at=now,
+        )
     except ExperimentExportError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except OSError as exc:
@@ -185,6 +210,14 @@ def remove_finished_experiment(
             status_code=500,
             detail="The experiment data could not be deleted.",
         ) from exc
+
+
+def _sha256(path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _finished_schedule(run_id: UUID) -> dict:

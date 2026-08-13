@@ -40,6 +40,7 @@ export function ExperimentDownloadPage() {
         body: JSON.stringify({
           schedule_hash: data.schedule_hash,
           experiment_name: confirmation,
+          archive_saved_confirmed: saved,
         }),
       });
       setDeleted(true);
