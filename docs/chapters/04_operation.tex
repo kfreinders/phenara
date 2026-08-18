@@ -14,7 +14,7 @@ new schedule.
 The acquisition schedule is stored in:
 
 \begin{verbatim}
-/home/phenopi/phenotyping/runtime/schedule.json
+$PHENARA_ROOT/runtime/schedule.json
 \end{verbatim}
 
 This file defines the experiment start date, the number of experiment days, the
@@ -99,7 +99,7 @@ schedules are removed automatically.
 All acquired images are stored in the configured capture directory. In the default installation, this is:
 
 \begin{verbatim}
-/home/phenopi/phenotyping/captures
+$PHENARA_ROOT/captures
 \end{verbatim}
 
 Images are saved using the filename format:
@@ -129,7 +129,7 @@ directory, and checking that enough storage space remains available. Recent
 captured images can be listed with:
 
 \begin{verbatim}
-ls -lt /home/phenopi/phenotyping/captures | head
+ls -lt "$PHENARA_CAPTURE_DIR" | head
 \end{verbatim}
 
 Available storage space can be checked with:
@@ -143,7 +143,7 @@ df -h
 The scheduler can be restarted with:
 
 \begin{verbatim}
-sudo systemctl restart phenopi-scheduler.service
+sudo systemctl restart phenara-scheduler.service
 \end{verbatim}
 
 A restart is useful after updating the code or changing service-level settings.
@@ -151,7 +151,7 @@ If the schedule file has not changed, the scheduler resumes using the matching
 schedule database. The scheduler can be stopped with:
 
 \begin{verbatim}
-sudo systemctl stop phenopi-scheduler.service
+sudo systemctl stop phenara-scheduler.service
 \end{verbatim}
 
 Stopping the scheduler prevents new captures from being started. It does not
@@ -161,7 +161,7 @@ remove captured images.
 
 After the final scheduled capture has completed, the capture directory contains
 the raw image dataset for the experiment. The capture directory should be
-preserved unchanged. Downstream Phenopi analysis tools operate on these
+preserved unchanged. Downstream Phenara analysis tools operate on these
 timestamped images and write processed outputs to separate result directories.
 Keeping the original images unchanged ensures that analyses can be repeated
 later with updated settings or newer versions of the analysis pipeline.

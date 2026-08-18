@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta
-import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 
-from .schedule_validation import validate_unique_values
+from .schedule_validation import (
+    MAX_STEP_MINUTES,
+    MAX_WINDOW_MINUTES,
+    validate_replicate_windows,
+    validate_schedule_size,
+    validate_unique_values,
+)
+from .schedule import Schedule
 
 
 def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
@@ -49,10 +57,14 @@ def every_n_minutes(start: str, end: str, step_minutes: int) -> list[str]:
     """
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
+    if step_minutes > MAX_STEP_MINUTES:
+        raise ValueError(f"step_minutes must be <= {MAX_STEP_MINUTES}")
 
     times: list[str] = []
     current = datetime.strptime(start, "%H:%M")
     end_dt = datetime.strptime(end, "%H:%M")
+    if end_dt < current:
+        raise ValueError("end time must not be earlier than start time")
 
     while current <= end_dt:
         times.append(current.strftime("%H:%M"))
@@ -110,11 +122,18 @@ def every_n_minutes_for_duration(
     """
     if duration_minutes < 0:
         raise ValueError("duration_minutes must be >= 0")
+    if duration_minutes > MAX_WINDOW_MINUTES:
+        raise ValueError(f"duration_minutes must be <= {MAX_WINDOW_MINUTES}")
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
+    if step_minutes > MAX_STEP_MINUTES:
+        raise ValueError(f"step_minutes must be <= {MAX_STEP_MINUTES}")
 
     times: list[str] = []
     current = datetime.strptime(start, "%H:%M")
+    minutes_remaining = 23 * 60 + 59 - (current.hour * 60 + current.minute)
+    if duration_minutes > minutes_remaining:
+        raise ValueError("duration window must not cross midnight")
     end_dt = current + timedelta(minutes=duration_minutes)
 
     while current <= end_dt:
@@ -178,8 +197,15 @@ def centered_time_range(
         raise ValueError("after_minutes must be >= 0")
     if step_minutes <= 0:
         raise ValueError("step_minutes must be > 0")
+    if before_minutes > MAX_WINDOW_MINUTES or after_minutes > MAX_WINDOW_MINUTES:
+        raise ValueError(f"centered window values must be <= {MAX_WINDOW_MINUTES}")
+    if step_minutes > MAX_STEP_MINUTES:
+        raise ValueError(f"step_minutes must be <= {MAX_STEP_MINUTES}")
 
     center_dt = datetime.strptime(center, "%H:%M")
+    center_minutes = center_dt.hour * 60 + center_dt.minute
+    if before_minutes > center_minutes or after_minutes > 1439 - center_minutes:
+        raise ValueError("centered window must not cross midnight")
     start_dt = center_dt - timedelta(minutes=before_minutes)
     end_dt = center_dt + timedelta(minutes=after_minutes)
 
@@ -218,15 +244,28 @@ def validate_unique_expanded_times(
     ValueError
         If the expanded daily schedule contains duplicate capture times.
     """
+    validate_schedule_size(
+        num_days=1,
+        daily_time_points=len(times),
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
+    base_datetimes = [datetime.strptime(value, "%H:%M") for value in times]
+    validate_replicate_windows(
+        [value.hour * 3600 + value.minute * 60 for value in base_datetimes],
+        replicates=replicates,
+        replicate_interval_seconds=replicate_interval_seconds,
+    )
     expanded: list[str] = []
 
-    for time_str in times:
-        base = datetime.strptime(time_str, "%H:%M")
+    for base in base_datetimes:
 
         for rep in range(replicates):
             capture_dt = base + timedelta(
                 seconds=rep * replicate_interval_seconds
             )
+            if capture_dt.date() != base.date():
+                raise ValueError("replicate captures must not cross midnight")
             expanded.append(capture_dt.strftime("%H:%M:%S"))
 
     validate_unique_values(
@@ -280,15 +319,26 @@ def write_schedule(
     times: list[str],
     replicates: int = 1,
     replicate_interval_seconds: int = 0,
+    run: dict | None = None,
+    analysis: dict | None = None,
+    daily_times: dict[str, list[str]] | None = None,
     overwrite: bool = False,
 ) -> None:
-    if num_days <= 0:
-        raise ValueError("--num-days must be > 0")
-
-    validate_unique_expanded_times(
+    for values in (daily_times or {"default": times}).values():
+        validate_unique_expanded_times(
+            times=values,
+            replicates=replicates,
+            replicate_interval_seconds=replicate_interval_seconds,
+        )
+    schedule = Schedule.create(
+        start_date=start_date,
+        num_days=num_days,
         times=times,
         replicates=replicates,
         replicate_interval_seconds=replicate_interval_seconds,
+        run=run,
+        analysis=analysis,
+        daily_times=daily_times,
     )
 
     if output.exists() and not overwrite:
@@ -296,21 +346,42 @@ def write_schedule(
             f"Output already exists: {output}. Use --overwrite to replace it."
         )
 
-    schedule = {
-        "start_date": start_date,
-        "num_days": num_days,
-        "replicates": replicates,
-        "replicate_interval_seconds": replicate_interval_seconds,
-        "times": times,
-    }
+    atomic_write_text(output, schedule.to_json())
 
+
+def schedule_json(schedule: dict | Schedule) -> str:
+    """Serialize a schedule in the canonical on-disk representation."""
+    if isinstance(schedule, Schedule):
+        return schedule.to_json()
+    return Schedule.from_dict(schedule).to_json()
+
+
+def atomic_write_text(output: Path, contents: str) -> None:
+    """Atomically replace a text file using a temporary sibling file."""
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(schedule, indent=2) + "\n")
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=output.parent,
+            prefix=f".{output.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary.write(contents)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        temporary_path.replace(output)
+    except Exception:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate Phenopi schedule JSON files."
+        description="Generate Phenara schedule JSON files."
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

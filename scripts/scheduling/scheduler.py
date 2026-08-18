@@ -4,21 +4,33 @@ import argparse
 import hashlib
 import json
 import subprocess
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 import time as time_module
 import sys
 from zoneinfo import ZoneInfo
 
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from scripts.analysis.queue import AnalysisQueue
+from scripts.analysis.worker import ANALYSIS_POLL_SECONDS, poll_analysis_queue
+
 from .config import SchedulerConfig, default_scheduler_config
+from .commands import (
+    SCHEDULER_COMMAND_FILENAME,
+    clear_scheduler_command,
+    read_schedule_cancellation,
+)
+from .heartbeat import HEARTBEAT_INTERVAL_SECONDS, SchedulerHeartbeat
+from .experiment_registry import ExperimentRegistry, REGISTRY_FILENAME
+from .schedule import Schedule
 from .schedule_validation import (
     ScheduleValidationError,
-    validate_unique_values,
 )
+from .run_store import RunArchive
 
 
 def parse_hhmm(value: str) -> time:
@@ -79,44 +91,35 @@ def schedule_content_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load_schedule(path: Path) -> dict:
-    return json.loads(path.read_text())
+def load_schedule(path: Path) -> Schedule:
+    return Schedule.from_json(path.read_text())
 
 
-def expand_schedule(cfg: dict, tz: ZoneInfo) -> list[datetime]:
-    start_date = date.fromisoformat(cfg["start_date"])
-    num_days = int(cfg["num_days"])
-    times = sorted({parse_hhmm(t) for t in cfg["times"]})
-
-    replicates = int(cfg.get("replicates", 1))
-    replicate_interval = int(cfg.get("replicate_interval_seconds", 0))
-
-    if num_days <= 0:
-        raise ValueError("num_days must be > 0")
-    if replicates <= 0:
-        raise ValueError("replicates must be > 0")
-    if replicate_interval < 0:
-        raise ValueError("replicate_interval_seconds must be >= 0")
-
-    jobs = []
-    for day_offset in range(num_days):
-        current_day = start_date + timedelta(days=day_offset)
-        for capture_time in times:
-            base = datetime.combine(current_day, capture_time, tzinfo=tz)
-            for rep in range(replicates):
-                jobs.append(base + timedelta(seconds=rep * replicate_interval))
-
-    validate_unique_values(
-        jobs,
-        label="expanded schedule",
-        value_name="capture time",
-        formatter=lambda dt: dt.strftime("%Y-%m-%d %H:%M:%S%z"),
-    )
-
-    return sorted(jobs)
+def expand_schedule(cfg: dict | Schedule, tz: ZoneInfo) -> list[datetime]:
+    schedule = cfg if isinstance(cfg, Schedule) else Schedule.from_dict(cfg)
+    return schedule.expand(tz)
 
 
-def run_capture(config: SchedulerConfig) -> None:
+def build_schedule_snapshot(
+    cfg: dict | Schedule,
+    schedule_hash: str,
+    tz: ZoneInfo,
+) -> dict:
+    """Build the normalized schedule metadata published in the heartbeat."""
+    configured = cfg if isinstance(cfg, Schedule) else Schedule.from_dict(cfg)
+    snapshot = {
+        "hash": schedule_hash,
+        "timezone": getattr(tz, "key", str(tz)),
+        **configured.to_dict(),
+    }
+    return snapshot
+
+
+def run_capture(
+    config: SchedulerConfig,
+    output_dir: Path | None = None,
+    output_path: Path | None = None,
+) -> None:
     """
     Execute the capture script as a subprocess.
 
@@ -135,15 +138,59 @@ def run_capture(config: SchedulerConfig) -> None:
     subprocess.CalledProcessError
         If the capture script exits with a non-zero return code.
     """
-    subprocess.run(
-        [
-            str(config.python_bin),
-            str(config.capture_script),
-            "--output-dir",
-            str(config.output_dir),
-        ],
-        check=True,
-    )
+    command = [str(config.python_bin), str(config.capture_script)]
+    if output_path is not None:
+        command.extend(["--output-path", str(output_path)])
+    else:
+        command.extend(
+            ["--output-dir", str(output_dir or config.output_dir)]
+        )
+    subprocess.run(command, check=True)
+
+
+def record_capture_event(
+    event,
+    heartbeat: SchedulerHeartbeat | None,
+    schedule_hash: str,
+    run_archive: RunArchive | None = None,
+) -> None:
+    """Record the latest capture result from an APScheduler job event."""
+    if not event.job_id.startswith("capture_"):
+        return
+    if event.code == EVENT_JOB_EXECUTED:
+        status = "succeeded"
+        message = "Capture completed successfully."
+    elif event.code == EVENT_JOB_MISSED:
+        status = "missed"
+        message = "Capture was missed by the scheduler."
+    else:
+        status = "failed"
+        message = str(event.exception) if event.exception else "Capture failed."
+    result = {
+            "schedule_hash": schedule_hash,
+            "status": status,
+            "scheduled_at": event.scheduled_run_time.isoformat(),
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "message": message,
+        }
+    if run_archive is not None:
+        image_path = (
+            run_archive.capture_path(event.scheduled_run_time)
+            if status == "succeeded"
+            else None
+        )
+        if image_path is not None and not image_path.is_file():
+            status = "failed"
+            message = "Capture command completed without writing an image."
+            image_path = None
+        result = run_archive.record(
+            scheduled_at=event.scheduled_run_time,
+            status=status,
+            message=message,
+            image_path=image_path,
+        )
+    if heartbeat is not None:
+        heartbeat.record_capture(result)
 
 
 def make_scheduler(
@@ -188,6 +235,8 @@ def poll_schedule_for_changes(
     scheduler: BlockingScheduler,
     config: SchedulerConfig,
     active_schedule_hash: str,
+    heartbeat: SchedulerHeartbeat | None = None,
+    run_archive: RunArchive | None = None,
 ) -> None:
     """
     Check whether the schedule file has changed.
@@ -210,28 +259,112 @@ def poll_schedule_for_changes(
         current_hash = schedule_content_hash(config.schedule_path)
 
         if current_hash == active_schedule_hash:
+            if heartbeat is not None:
+                heartbeat.set_state(
+                    "running",
+                    "The scheduler is running with a valid schedule.",
+                )
             return
 
         cfg = load_schedule(config.schedule_path)
         expand_schedule(cfg, config.tz)
+        replacement_run_id = cfg.run.id if cfg.run is not None else None
 
     except (
         ScheduleValidationError,
+        KeyError,
+        TypeError,
         ValueError,
         FileNotFoundError,
         OSError,
         json.JSONDecodeError,
     ) as exc:
+        if heartbeat is not None:
+            heartbeat.set_state(
+                "invalid_schedule",
+                f"The updated schedule is invalid; keeping the active schedule: {exc}",
+            )
         print(
             "[scheduler] Schedule file changed or could not be read, but the "
             f"new schedule is not valid: {exc}. Keeping current schedule."
         )
         return
 
+    if run_archive is not None:
+        now = datetime.now(config.tz)
+        state = (
+            "completed"
+            if run_archive.expected_times
+            and now > run_archive.expected_times[-1]
+            else "superseded"
+        )
+        run_archive.mark_ended(
+            state,
+            superseded_by=replacement_run_id,
+        )
+
     print(
         "[scheduler] Schedule file changed and the new schedule is valid. "
         "Restarting scheduler with the new schedule database."
     )
+    if heartbeat is not None:
+        heartbeat.set_state(
+            "running",
+            "A valid schedule update was found; reloading the scheduler.",
+        )
+    scheduler.shutdown(wait=False)
+
+
+def poll_scheduler_commands(
+    scheduler: BlockingScheduler,
+    config: SchedulerConfig,
+    active_schedule_hash: str,
+    heartbeat: SchedulerHeartbeat | None = None,
+    run_archive: RunArchive | None = None,
+    schedule_snapshot: dict | None = None,
+) -> None:
+    """Stop the active schedule after accepting a matching cancellation request."""
+    command_path = config.runtime_dir / SCHEDULER_COMMAND_FILENAME
+    try:
+        request = read_schedule_cancellation(command_path)
+    except ValueError as exc:
+        clear_scheduler_command(command_path)
+        print(f"[scheduler] Ignoring invalid scheduler command: {exc}")
+        return
+    if request is None:
+        return
+    if request.schedule_hash != active_schedule_hash:
+        clear_scheduler_command(command_path)
+        print("[scheduler] Ignoring cancellation request for an inactive schedule.")
+        return
+
+    cancelled_path = config.runtime_dir / (
+        f"cancelled-schedule-{active_schedule_hash[:12]}.json"
+    )
+    config.schedule_path.replace(cancelled_path)
+    try:
+        if run_archive is not None:
+            run_archive.mark_ended("cancelled")
+    except (OSError, ValueError):
+        cancelled_path.replace(config.schedule_path)
+        raise
+    try:
+        clear_scheduler_command(command_path)
+    except OSError as exc:
+        print(f"[scheduler] Could not clear accepted scheduler command: {exc}")
+    if heartbeat is not None:
+        heartbeat.set_capture_status_provider(None)
+        finished_schedule = (
+            {**schedule_snapshot, "terminal_state": "cancelled"}
+            if schedule_snapshot is not None
+            else None
+        )
+        heartbeat.set_state(
+            "waiting_for_schedule",
+            "The active experiment was stopped by the operator.",
+            schedule=finished_schedule,
+        )
+    print("[scheduler] Active experiment stopped by operator request.")
     scheduler.shutdown(wait=False)
 
 
@@ -261,12 +394,16 @@ def jobstore_path_for_schedule(
     return runtime_dir / f"apscheduler-{short_hash}.sqlite"
 
 
-def run_scheduler_until_reload(config: SchedulerConfig) -> None:
+def run_scheduler_until_reload(
+    config: SchedulerConfig,
+    heartbeat: SchedulerHeartbeat | None = None,
+) -> bool:
     """
     Start APScheduler for the current schedule.
 
-    The function returns when the scheduler is shut down, for example because
-    the schedule polling job detected a valid schedule change.
+    The function returns ``True`` after a scheduler was started and later shut
+    down. It returns ``False`` when no valid schedule could be loaded, allowing
+    the outer service loop to remain alive and retry.
     """
     tz = config.tz
 
@@ -286,47 +423,214 @@ def run_scheduler_until_reload(config: SchedulerConfig) -> None:
         cfg = load_schedule(config.schedule_path)
         run_times = expand_schedule(cfg, tz)
     except FileNotFoundError:
+        if heartbeat is not None:
+            heartbeat.set_capture_status_provider(None)
+            heartbeat.set_state(
+                "waiting_for_schedule",
+                "The scheduler is waiting for a schedule file.",
+                schedule=None,
+            )
         print(
             "[scheduler] Schedule file disappeared before it could be loaded. "
             "Waiting for schedule..."
         )
-        return
+        return False
     except (
         ScheduleValidationError,
+        KeyError,
+        TypeError,
         ValueError,
         OSError,
         json.JSONDecodeError,
     ) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(2) from None
+        error_message = describe_schedule_load_error(exc)
+        if heartbeat is not None:
+            heartbeat.set_capture_status_provider(None)
+            heartbeat.set_state(
+                "invalid_schedule",
+                f"The scheduler could not load the schedule: {error_message}",
+                schedule=None,
+            )
+        print(
+            f"[scheduler] Invalid schedule: {error_message}",
+            flush=True,
+        )
+        return False
+
+    registry = ExperimentRegistry(config.runtime_dir / REGISTRY_FILENAME)
+    registry.reconcile(config.output_dir)
+    run_archive = None
+    if cfg.run is not None:
+        try:
+            run_archive = RunArchive(
+                config.output_dir,
+                cfg,
+                schedule_hash,
+                run_times,
+                registry,
+            )
+            now = datetime.now(tz)
+            run_archive.record_unreported_past(
+                now,
+                cutoff=now - config.misfire_grace,
+            )
+        except (OSError, ValueError) as exc:
+            if heartbeat is not None:
+                heartbeat.set_capture_status_provider(None)
+                heartbeat.set_state(
+                    "invalid_schedule",
+                    f"The run archive could not be prepared: {exc}",
+                    schedule=None,
+                )
+            print(f"[scheduler] Invalid run archive: {exc}", flush=True)
+            return False
 
     scheduler = make_scheduler(config, jobstore_path)
 
+    if heartbeat is not None or run_archive is not None:
+        scheduler.add_listener(
+            lambda event: record_capture_event(
+                event,
+                heartbeat,
+                schedule_hash,
+                run_archive,
+            ),
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
+        )
+
+    schedule_snapshot = build_schedule_snapshot(cfg, schedule_hash, tz)
     scheduler.add_job(
         poll_schedule_for_changes,
         trigger="interval",
         seconds=config.reload_interval.total_seconds(),
-        args=[scheduler, config, schedule_hash],
+        args=[scheduler, config, schedule_hash, heartbeat, run_archive],
         id="poll_schedule",
         max_instances=1,
         replace_existing=True,
         jobstore="control",
     )
+    scheduler.add_job(
+        poll_scheduler_commands,
+        trigger="interval",
+        seconds=2,
+        args=[
+            scheduler,
+            config,
+            schedule_hash,
+            heartbeat,
+            run_archive,
+            schedule_snapshot,
+        ],
+        id="poll_commands",
+        max_instances=1,
+        replace_existing=True,
+        jobstore="control",
+    )
+
+    analysis_state: dict = {}
+    analysis_enabled = run_archive is not None and cfg.analysis is not None
+    if analysis_enabled:
+        analysis_queue = AnalysisQueue(run_archive.analysis_dir)
+        analysis_state.update(
+            analysis_queue.summary(run_archive.events()),
+            state="idle",
+            reason=None,
+            capture_id=None,
+            next_safe_at=None,
+        )
+        scheduler.add_job(
+            poll_analysis_queue,
+            trigger="interval",
+            seconds=ANALYSIS_POLL_SECONDS,
+            args=[config, run_archive, run_times, analysis_state],
+            id="poll_analysis",
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+            jobstore="control",
+        )
+
+    if heartbeat is not None:
+        if run_archive is not None:
+            def capture_status() -> dict:
+                now = datetime.now(tz)
+                payload = run_archive.status_payload(now)
+                if analysis_enabled:
+                    analysis_summary = AnalysisQueue(
+                        run_archive.analysis_dir
+                    ).summary(run_archive.events())
+                    analysis_summary.update(
+                        {
+                            key: value
+                            for key, value in analysis_state.items()
+                            if (
+                                key not in analysis_summary
+                                and not key.startswith("_")
+                            )
+                        }
+                    )
+                    payload["analysis"] = analysis_summary
+                summary = payload["summary"]
+                if (
+                    run_times
+                    and now > run_times[-1]
+                    and summary["remaining"] == 0
+                    and summary["elapsed_unreported"] == 0
+                    and (
+                        not analysis_enabled
+                        or (
+                            payload["analysis"]["pending"] == 0
+                            and payload["analysis"]["running"] == 0
+                        )
+                    )
+                ):
+                    run_archive.mark_ended(
+                        "completed",
+                        analysis_summary=payload.get("analysis"),
+                    )
+                return payload
+
+            heartbeat.set_capture_status_provider(capture_status)
+        else:
+            heartbeat.set_capture_status_provider(None)
+        heartbeat.set_state(
+            "running",
+            "The scheduler is running with a valid schedule.",
+            schedule=schedule_snapshot,
+        )
+        scheduler.add_job(
+            heartbeat.write,
+            trigger="interval",
+            seconds=HEARTBEAT_INTERVAL_SECONDS,
+            id="write_heartbeat",
+            max_instances=1,
+            replace_existing=True,
+            jobstore="control",
+        )
 
     now = datetime.now(tz)
+    late_cutoff = now - config.misfire_grace
     scheduled = 0
-    skipped_past = 0
+    skipped_late = 0
 
     for run_time in run_times:
-        if run_time < now:
-            skipped_past += 1
+        if run_time < late_cutoff:
+            skipped_late += 1
             continue
 
         scheduler.add_job(
             run_capture,
             trigger="date",
             run_date=run_time,
-            args=[config],
+            args=[
+                config,
+                run_archive.directory if run_archive else None,
+                (
+                    run_archive.capture_path(run_time)
+                    if run_archive is not None
+                    else None
+                ),
+            ],
             id=f"capture_{run_time.isoformat()}",
             misfire_grace_time=int(config.misfire_grace.total_seconds()),
             max_instances=1,
@@ -340,16 +644,20 @@ def run_scheduler_until_reload(config: SchedulerConfig) -> None:
         jobstore_path=jobstore_path,
         run_times=run_times,
         scheduled=scheduled,
-        skipped_late=skipped_past,
+        skipped_late=skipped_late,
         jobstore_existed=jobstore_existed,
         stale_deleted=stale_deleted,
     )
 
     print("[scheduler] Starting scheduler")
     scheduler.start()
+    return True
 
 
-def wait_for_schedule(config: SchedulerConfig) -> None:
+def wait_for_schedule(
+    config: SchedulerConfig,
+    heartbeat: SchedulerHeartbeat | None = None,
+) -> None:
     """
     Wait until the configured schedule file exists.
 
@@ -357,14 +665,37 @@ def wait_for_schedule(config: SchedulerConfig) -> None:
     schedule has been created. The service remains active and periodically
     checks for the schedule file.
     """
-    interval_seconds = config.reload_interval.total_seconds()
+    interval_seconds = min(
+        config.reload_interval.total_seconds(),
+        HEARTBEAT_INTERVAL_SECONDS,
+    )
 
     while not config.schedule_path.exists():
+        if heartbeat is not None:
+            heartbeat.set_capture_status_provider(None)
+            heartbeat.set_state(
+                "waiting_for_schedule",
+                "The scheduler is waiting for a schedule file.",
+            )
         print(
             "[scheduler] No schedule file found at "
             f"{config.schedule_path}. Waiting for schedule..."
         )
         time_module.sleep(interval_seconds)
+
+
+def describe_schedule_load_error(exc: Exception) -> str:
+    """Turn low-level schedule parsing failures into actionable messages."""
+    if isinstance(exc, json.JSONDecodeError):
+        if not exc.doc.strip():
+            return "The schedule file is empty."
+        return (
+            "The schedule file does not contain valid JSON "
+            f"(line {exc.lineno}, column {exc.colno})."
+        )
+    if isinstance(exc, KeyError):
+        return f"The schedule is missing required field {exc.args[0]!r}."
+    return str(exc)
 
 
 def delete_stale_jobstores(
@@ -552,15 +883,30 @@ def main() -> None:
 
     args = parser.parse_args()
     config = config_from_args(args)
+    heartbeat = SchedulerHeartbeat(
+        config.runtime_dir,
+        storage_path=config.output_dir,
+    )
 
     while True:
         try:
-            wait_for_schedule(config)
-            run_scheduler_until_reload(config)
+            wait_for_schedule(config, heartbeat)
+            scheduler_started = run_scheduler_until_reload(config, heartbeat)
         except KeyboardInterrupt:
             print("[scheduler] Stopping scheduler")
             raise SystemExit(0) from None
 
+        if not scheduler_started:
+            retry_seconds = min(
+                config.reload_interval.total_seconds(),
+                HEARTBEAT_INTERVAL_SECONDS,
+            )
+            print(
+                f"[scheduler] Retrying schedule load in {retry_seconds:g} seconds",
+                flush=True,
+            )
+            time_module.sleep(retry_seconds)
+            continue
         print("[scheduler] Scheduler stopped; reloading schedule")
 
 

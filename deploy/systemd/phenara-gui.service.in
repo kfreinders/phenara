@@ -1,0 +1,25 @@
+[Unit]
+Description=Phenara web interface
+After=network-online.target phenara-scheduler.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@PHENARA_USER@
+Group=@PHENARA_GROUP@
+EnvironmentFile=/etc/phenara/phenara.env
+WorkingDirectory=@PHENARA_ROOT@
+ExecStart="@PHENARA_PYTHON@" -m gui.app
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths="@PHENARA_RUNTIME_DIR@" "@PHENARA_CAPTURE_DIR@"
+
+[Install]
+WantedBy=multi-user.target

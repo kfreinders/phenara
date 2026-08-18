@@ -1,0 +1,229 @@
+#camera-preview[hidden],
+#camera-placeholder[hidden] {
+  display: none !important;
+}
+
+.camera-page {
+  overflow: hidden;
+}
+
+.camera-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.camera-heading h2,
+.camera-heading p {
+  margin: 0;
+}
+
+.camera-heading p {
+  margin-top: .25rem;
+  color: var(--muted);
+}
+
+.camera-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.camera-preview-card,
+.camera-info-card {
+  border: 1px solid #d7e4f3;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(8, 34, 74, 0.06);
+}
+
+.camera-preview-card {
+  padding: 1rem;
+}
+
+.camera-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 28rem;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  border: 1px solid #d0d5dd;
+  background: linear-gradient(145deg, #f2f4f7, #e4e7ec);
+}
+
+.camera-stage video,
+.camera-stage > img {
+  width: 100%;
+  height: 100%;
+  min-height: 28rem;
+  object-fit: contain;
+  background: #0f172a;
+}
+
+.camera-placeholder {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #475467;
+  padding: 2rem;
+}
+
+.camera-placeholder-icon {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: 1rem;
+  border-radius: 999px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgb(16 24 40 / 8%);
+}
+
+.camera-placeholder-icon svg {
+  width: 2rem;
+  height: 2rem;
+  fill: none;
+  stroke: #667085;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.camera-placeholder h3 {
+  margin: 0;
+  color: #344054;
+}
+
+.camera-placeholder p {
+  max-width: 24rem;
+  margin: 0.4rem 0 0;
+  color: #667085;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.camera-info-card {
+  padding: 1rem;
+}
+
+.camera-workflow-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px dashed #98a2b3;
+  border-radius: .85rem;
+  background: #f9fafb;
+}
+
+.camera-workflow-footer p {
+  margin: .25rem 0 0;
+  color: var(--muted);
+}
+
+.camera-continue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 0 0 auto;
+  padding: .75rem .9rem;
+  border-radius: .65rem;
+  color: white;
+  background: var(--blue);
+  text-decoration: none;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.camera-continue-link:hover,
+.camera-continue-link:focus-visible {
+  background: var(--blue-dark);
+}
+
+.camera-info-card h3 {
+  margin-top: 0;
+}
+
+.camera-status-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.camera-status-list div {
+  padding: 0.75rem;
+  border: 1px solid #d7e4f3;
+  border-radius: 0.75rem;
+  background: #f8fbff;
+}
+
+.camera-status-list dt {
+  margin-bottom: 0.2rem;
+  color: #607087;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.camera-status-list dd {
+  margin: 0;
+  color: #08224a;
+  font-weight: 800;
+}
+
+.camera-note {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  background: #effaf7;
+  border: 1px solid #bae0d7;
+}
+
+.camera-note strong {
+  color: #0f766e;
+}
+
+.camera-note p {
+  margin: 0.35rem 0 0;
+  color: #526173;
+  line-height: 1.45;
+}
+
+.camera-note--confirmed {
+  border-color: #abefc6;
+  background: #ecfdf3;
+}
+
+.camera-note--confirmed strong {
+  color: #067647;
+}
+
+@media (max-width: 900px) {
+  .camera-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .camera-stage,
+  .camera-stage video {
+    min-height: 20rem;
+  }
+
+  .camera-workflow-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .camera-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

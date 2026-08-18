@@ -1,20 +1,18 @@
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import json
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import logging
+import tempfile
 
+import cv2
 import pandas as pd
 from plantcv import plantcv as pcv  # type: ignore[import-not-found]
 from .config import AnalysisConfig
 from .image_preprocessing import (
     load_and_rotate_image,
     segment_plants,
-    remove_square_components,
-    resolve_analysis_frame,
-    make_labeled_mask,
-    save_roi_circle_overlay,
 )
 from .measurements import (
     configure_plantcv,
@@ -22,6 +20,18 @@ from .measurements import (
     observations_to_dataframe,
     add_metric_units
 )
+from .roi import RoiDefinition, detect_roi_definition
+
+
+@dataclass(frozen=True)
+class ImageAnalysisResult:
+    """Outputs produced by one completed image analysis."""
+
+    image_path: Path
+    traits_path: Path
+    overlay_path: Path
+    config_fingerprint: str
+    traits: pd.DataFrame
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -41,18 +51,27 @@ def _analyze_image_worker(
     image_path: Path,
     output_dir: Path,
     cfg: AnalysisConfig,
+    roi_definition: RoiDefinition,
 ) -> pd.DataFrame:
-    df = analyze_image(image_path, output_dir, cfg)
-    df.insert(0, "image", image_path.name)
-    return df
+    result = analyze_image(image_path, output_dir, cfg, roi_definition)
+    traits = result.traits.copy()
+    traits.insert(0, "image", image_path.name)
+    return traits
 
 
 def analyze_image(
-    image_path: Path, output_dir: Path, cfg: AnalysisConfig
-) -> pd.DataFrame:
+    image_path: Path,
+    output_dir: Path,
+    cfg: AnalysisConfig,
+    roi_definition: RoiDefinition | None = None,
+) -> ImageAnalysisResult:
     logger = logging.getLogger(__name__)
 
+    if not image_path.is_file():
+        raise ValueError(f"Image does not exist or is not a file: {image_path}")
+
     logger.info("Starting analysis: %s", image_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
     configure_plantcv(cfg, output_dir)
 
     logger.debug("Clearing previous PlantCV outputs")
@@ -71,41 +90,66 @@ def analyze_image(
     logger.info("Segmenting plants")
     mask = segment_plants(img, cfg)
 
-    logger.info("Removing square-like components before cropping")
-    crop_mask = remove_square_components(mask)
-
-    logger.info("Resolving analysis frame")
-    img_crop, mask_crop = resolve_analysis_frame(img, mask, crop_mask, cfg)
-
-    logger.info(
-        f"Creating ROI grid: {cfg.roi_rows} rows x {cfg.roi_cols} cols"
-    )
-
-    labeled_mask, num_plants, grid_cells = make_labeled_mask(mask_crop, cfg)
+    if roi_definition is None:
+        logger.info("Calibrating ROI grid with PlantCV")
+        roi_definition = detect_roi_definition(img, mask, cfg)
+    _validate_roi_definition(roi_definition, cfg)
+    labeled_mask, num_plants = roi_definition.labeled_mask(mask)
     logger.info("Detected %d plant labels", num_plants)
 
     stem = image_path.stem
+    overlay_path = output_dir / f"{stem}_roi_overlay.png"
 
     logger.info("Saving ROI overlay")
-    save_roi_circle_overlay(
-        img_crop,
-        grid_cells,
-        output_dir / f"{stem}_roi_overlay.png",
-    )
+    with tempfile.NamedTemporaryFile(
+        prefix=f".{stem}_roi_overlay.",
+        suffix=".png",
+        dir=output_dir,
+        delete=False,
+    ) as temporary_overlay:
+        temporary_overlay_path = Path(temporary_overlay.name)
+    temporary_csv_path: Path | None = None
+    try:
+        overlay = roi_definition.draw_overlay(img)
+        if not cv2.imwrite(
+            str(temporary_overlay_path),
+            cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR),
+        ):
+            raise ValueError("The ROI overlay could not be written.")
 
-    logger.info("Measuring plant shape traits")
-    analyze_shape(img_crop, labeled_mask, num_plants)
-    df = observations_to_dataframe()
-    df = add_metric_units(df, cfg)
+        logger.info("Measuring plant shape traits")
+        analyze_shape(img, labeled_mask, num_plants)
+        df = observations_to_dataframe()
+        df = add_metric_units(df, cfg)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = output_dir / f"{stem}_traits.csv"
-    logger.info("Writing traits CSV: %s", csv_path)
-    df.to_csv(csv_path, index=False)
+        csv_path = output_dir / f"{stem}_traits.csv"
+        logger.info("Writing traits CSV: %s", csv_path)
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{stem}_traits.",
+            suffix=".csv",
+            dir=output_dir,
+            delete=False,
+        ) as temporary_csv:
+            temporary_csv_path = Path(temporary_csv.name)
+        df.to_csv(temporary_csv_path, index=False)
+
+        temporary_overlay_path.replace(overlay_path)
+        temporary_csv_path.replace(csv_path)
+    except BaseException:
+        temporary_overlay_path.unlink(missing_ok=True)
+        if temporary_csv_path is not None:
+            temporary_csv_path.unlink(missing_ok=True)
+        raise
 
     logger.info("Finished analysis: %s", image_path)
 
-    return df
+    return ImageAnalysisResult(
+        image_path=image_path,
+        traits_path=csv_path,
+        overlay_path=overlay_path,
+        config_fingerprint=cfg.fingerprint,
+        traits=df,
+    )
 
 
 def analyze_images(
@@ -113,12 +157,28 @@ def analyze_images(
     output_dir: Path,
     cfg: AnalysisConfig,
     n_workers: int | None = None,
+    roi_definition: RoiDefinition | None = None,
 ) -> pd.DataFrame:
     logger = logging.getLogger(__name__)
     all_results: list[pd.DataFrame] = []
 
     if not image_paths:
         raise ValueError("No images were provided for analysis.")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    roi_path = output_dir / "roi-definition.json"
+    if roi_definition is not None:
+        logger.info("Using explicitly calibrated reusable ROI grid")
+        _validate_roi_definition(roi_definition, cfg)
+        roi_definition.save(roi_path)
+    elif roi_path.exists():
+        logger.info("Loading reusable ROI grid: %s", roi_path)
+        roi_definition = RoiDefinition.load(roi_path)
+        _validate_roi_definition(roi_definition, cfg)
+    else:
+        logger.info("Calibrating reusable ROI grid from %s", image_paths[0])
+        roi_definition = calibrate_roi(image_paths[0], cfg)
+        roi_definition.save(roi_path)
 
     logger.info(f"Starting batch analysis for {len(image_paths)} image(s)")
     logger.info(f"Using {n_workers} worker(s)")
@@ -128,7 +188,9 @@ def analyze_images(
             logger.info(
                 f"Processing image {i}/{len(image_paths)}: {image_path}"
             )
-            df = _analyze_image_worker(image_path, output_dir, cfg)
+            df = _analyze_image_worker(
+                image_path, output_dir, cfg, roi_definition
+            )
             all_results.append(df)
 
     else:
@@ -139,6 +201,7 @@ def analyze_images(
                     image_path,
                     output_dir,
                     cfg,
+                    roi_definition,
                 ): image_path
                 for image_path in image_paths
             }
@@ -165,6 +228,27 @@ def analyze_images(
 
     logger.info("Batch analysis complete")
     return combined
+
+
+def calibrate_roi(image_path: Path, cfg: AnalysisConfig) -> RoiDefinition:
+    if not image_path.is_file():
+        raise ValueError(f"Image does not exist or is not a file: {image_path}")
+    image = load_and_rotate_image(image_path, cfg.rotate_angle)
+    mask = segment_plants(image, cfg)
+    return detect_roi_definition(image, mask, cfg)
+
+
+def _validate_roi_definition(
+    definition: RoiDefinition, cfg: AnalysisConfig
+) -> None:
+    if definition.rows != cfg.roi_rows or definition.columns != cfg.roi_cols:
+        raise ValueError(
+            "The saved ROI grid dimensions do not match the analysis settings."
+        )
+    if definition.config_fingerprint != cfg.fingerprint:
+        raise ValueError(
+            "The saved ROI definition was calibrated with different settings."
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -208,8 +292,8 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    parser.add_argument("--rotate-angle", type=float, default=1.0)
-    parser.add_argument("--threshold", type=int, default=100)
+    parser.add_argument("--rotate-angle", type=float, default=0.0)
+    parser.add_argument("--threshold", type=int, default=145)
     parser.add_argument("--fill-size", type=int, default=200)
     parser.add_argument(
         "--frame-source",
@@ -255,6 +339,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--roi-rows", type=int, default=5)
     parser.add_argument("--roi-cols", type=int, default=9)
+    parser.add_argument(
+        "--roi-diameter-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Scale automatically detected ROI diameters "
+            "(0.5 to 2.0; default: 1.0)."
+        ),
+    )
     parser.add_argument("--grid-margin-x", type=int, default=0)
     parser.add_argument("--grid-margin-y", type=int, default=0)
     parser.add_argument("--grid-cell-padding-x", type=int, default=0)
@@ -289,6 +382,7 @@ def main() -> None:
         grid_height=args.grid_height,
         roi_rows=args.roi_rows,
         roi_cols=args.roi_cols,
+        roi_diameter_scale=args.roi_diameter_scale,
         grid_margin_x=args.grid_margin_x,
         grid_margin_y=args.grid_margin_y,
         grid_cell_padding_x=args.grid_cell_padding_x,
@@ -303,8 +397,7 @@ def main() -> None:
     config_path = args.outdir / "analysis_config.json"
     logger.info("Writing analysis config: %s", config_path)
 
-    with config_path.open("w") as f:
-        json.dump(cfg.__dict__, f, indent=2)
+    cfg.save(config_path)
 
     logger.info(f"Using {args.workers} workers")
 

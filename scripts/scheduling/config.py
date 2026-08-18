@@ -5,6 +5,8 @@ from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from phenara.config import SETTINGS
+
 
 @dataclass(frozen=True)
 class SchedulerConfig:
@@ -19,16 +21,13 @@ class SchedulerConfig:
 
 
 def default_scheduler_config() -> SchedulerConfig:
-    wd = Path(
-        "/home/phenopi/phenopi/"
-    )
     return SchedulerConfig(
-        schedule_path=wd / "runtime/schedule.json",
-        capture_script=wd / "scripts/capture/capture_once.py",
-        python_bin=Path("/home/phenopi/venvs/phenopi/bin/python"),
-        output_dir=wd / "captures",
-        runtime_dir=wd / "runtime/",
+        schedule_path=SETTINGS.schedule_path,
+        capture_script=SETTINGS.capture_script,
+        python_bin=SETTINGS.python_bin,
+        output_dir=SETTINGS.capture_dir,
+        runtime_dir=SETTINGS.runtime_dir,
         misfire_grace=timedelta(minutes=10),
         reload_interval=timedelta(seconds=30),
-        tz=ZoneInfo("Europe/Amsterdam"),
+        tz=SETTINGS.timezone,
     )
