@@ -9,6 +9,10 @@ describe("experiment history", () => {
     expect(source).toContain("raw_data_blocker_ids");
     expect(source).toContain("metadata records retained");
     expect(source).toContain("Raw files exported and removed");
+    expect(source).toContain("history-row-link");
+    expect(source).not.toContain("View experiment");
+    expect(source).not.toContain("Open record");
+    expect(source).toContain("history-card-arrow");
   });
 
   it("presents the retained record metadata graphically", () => {
