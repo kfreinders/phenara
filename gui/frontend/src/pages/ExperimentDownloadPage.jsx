@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
 import { formatBytes, formatDateTime } from "../format";
@@ -69,6 +69,7 @@ async function copyText(value) {
 
 export function ExperimentDownloadPage() {
   const { runId } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [downloadStarted, setDownloadStarted] = useState(false);
@@ -77,6 +78,7 @@ export function ExperimentDownloadPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
   const [scheduleCopyStatus, setScheduleCopyStatus] = useState("idle");
+  const [reusing, setReusing] = useState(false);
 
   useEffect(() => {
     let active = true; let timer;
@@ -113,6 +115,20 @@ export function ExperimentDownloadPage() {
     }
   };
 
+  const reuseConfiguration = async () => {
+    if (!window.confirm("Create a new schedule draft from this configuration? Any existing draft will be replaced.")) return;
+    setReusing(true); setError(null);
+    try {
+      await api(`/api/experiments/${runId}/reuse`, {
+        method: "POST",
+        body: JSON.stringify({ replace_existing_draft: true }),
+      });
+      navigate("/schedule/build/edit");
+    } catch (reason) {
+      setError(reason); setReusing(false);
+    }
+  };
+
   if (!data && !error) return <Loading label="Preparing experiment download" />;
   if (!data) return <ErrorNotice error={error} />;
   const nameMatches = confirmation === data.run.name;
@@ -121,7 +137,7 @@ export function ExperimentDownloadPage() {
   const scheduleJson = schedule ? `${JSON.stringify(schedule, null, 2)}\n` : "";
   const scheduleFilename = `${data.run.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "experiment"}-schedule.json`;
   return <section className="download-page">
-    <div className="react-page-heading record-heading"><div><span className="eyebrow">Experiment record</span><h2>{data.run.name}</h2><p>Review the experiment protocol, outcomes, and reproducibility metadata.</p></div><span className={`lifecycle-badge lifecycle-badge--${data.state}`}>{stateLabels[data.state] ?? data.state}</span></div>
+    <div className="react-page-heading record-heading"><div><span className="eyebrow">Experiment record</span><h2>{data.run.name}</h2><p>Review the experiment protocol, outcomes, and reproducibility metadata.</p></div><div className="record-heading-actions"><span className={`lifecycle-badge lifecycle-badge--${data.state}`}>{stateLabels[data.state] ?? data.state}</span><button type="button" onClick={reuseConfiguration} disabled={reusing}>{reusing ? "Creating draft…" : "Use this configuration"}</button></div></div>
     {error && <ErrorNotice error={error} />}
     <section className="card download-summary">
       <div><span>Experiment period</span><strong>{data.start_date.replaceAll("-", "/")} → {data.end_date.replaceAll("-", "/")}</strong><small>{schedule?.num_days ? `${schedule.num_days} day${schedule.num_days === 1 ? "" : "s"}` : "Recorded experiment period"}</small></div>

@@ -22,7 +22,10 @@ from gui.services.experiment_exports import (
     download_path,
     export_details,
 )
-from gui.services.schedule_drafts import load_current_schedule_draft
+from gui.services.schedule_drafts import (
+    load_current_schedule_draft,
+    reuse_schedule_as_draft,
+)
 from gui.services.scheduler_status import (
     read_scheduler_health,
     read_scheduler_status,
@@ -49,6 +52,12 @@ class ExperimentDeletionRequest(BaseModel):
     schedule_hash: str
     experiment_name: str
     archive_saved_confirmed: bool = False
+
+
+class ExperimentReuseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    replace_existing_draft: bool = False
 
 
 def schedule_draft_state() -> str:
@@ -187,6 +196,35 @@ def finished_experiment(run_id: UUID) -> dict:
             "deleted_at": row["deleted_at"],
         })
     return details
+
+
+@router.post("/api/experiments/{run_id}/reuse")
+def reuse_experiment_configuration(
+    run_id: UUID,
+    request: ExperimentReuseRequest,
+) -> dict:
+    schedule = _finished_schedule(run_id)
+    if SCHEDULE_DRAFT_PATH.exists() and not request.replace_existing_draft:
+        raise HTTPException(
+            status_code=409,
+            detail="A schedule draft already exists.",
+        )
+    try:
+        draft = reuse_schedule_as_draft(
+            schedule,
+            SCHEDULE_DRAFT_PATH,
+        )
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The reused schedule draft could not be saved.",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "draft_hash": draft.schedule_hash,
+        "experiment_name": draft.form.experiment_name,
+    }
 
 
 @router.get("/api/experiments/{run_id}/download")

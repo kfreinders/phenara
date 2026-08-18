@@ -90,6 +90,8 @@
 .download-page { display: grid; gap: 1rem; }
 .record-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .record-heading .lifecycle-badge { flex: 0 0 auto; margin-top: .25rem; }
+.record-heading-actions { display: flex; align-items: center; gap: .65rem; flex: 0 0 auto; }
+.record-heading-actions button { padding: .65rem .8rem; font-size: .78rem; }
 .record-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
 .record-panel { display: grid; align-content: start; gap: 1rem; margin: 0; }
 .record-panel header h3 { margin: .15rem 0 0; }
@@ -178,7 +180,7 @@
 .cleanup-complete > span { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; color: white; background: #12b76a; font-weight: 900; }
 @media (max-width: 760px) { .stop-experiment { align-items: flex-start; flex-direction: column; } .stop-actions { justify-content: flex-start; } .stop-confirmation { justify-items: start; } }
 @media (max-width: 760px) { .download-summary { grid-template-columns: 1fr; } .download-action, .cleanup-complete { grid-template-columns: auto 1fr; } .download-action .primary-link, .cleanup-complete .primary-link { grid-column: 1 / -1; justify-self: start; } }
-@media (max-width: 760px) { .record-heading { flex-direction: column; } .record-grid { grid-template-columns: 1fr; } .record-metrics { grid-template-columns: repeat(2, 1fr); } .record-metadata-item { grid-template-columns: 1fr; gap: .25rem; } }
+@media (max-width: 760px) { .record-heading { flex-direction: column; } .record-heading-actions { align-items: flex-start; flex-direction: column; } .record-grid { grid-template-columns: 1fr; } .record-metrics { grid-template-columns: repeat(2, 1fr); } .record-metadata-item { grid-template-columns: 1fr; gap: .25rem; } }
 @media (max-width: 760px) { .record-source-actions { align-items: stretch; flex-direction: column; } .record-source-actions a, .record-source-actions button { justify-content: center; width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .react-spinner { animation: none; } }
 .analysis-setup-layout { display: grid; grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr); gap: 1rem; align-items: start; }

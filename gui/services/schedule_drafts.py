@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 from pathlib import Path
 from typing import Any
@@ -17,7 +17,7 @@ from gui.services.schedule_builder import (
     SchedulePreview,
     build_schedule_preview,
 )
-from gui.services.schedule_form import ScheduleFormData
+from gui.services.schedule_form import ScheduleFormData, form_defaults
 from scripts.scheduling.make_schedule import (
     atomic_write_text,
     schedule_json,
@@ -84,6 +84,89 @@ def persist_schedule_draft(
         camera_preview_ready=(
             existing.camera_preview_ready if existing else False
         ),
+    )
+    atomic_write_text(path, draft.model_dump_json(indent=2) + "\n")
+    return draft
+
+
+def reuse_schedule_as_draft(
+    source: dict[str, Any],
+    path: Path = SCHEDULE_DRAFT_PATH,
+    *,
+    start_date: date | None = None,
+) -> ScheduleDraft:
+    """Create a new editable draft from a retained experiment schedule."""
+    source_start = date.fromisoformat(str(source["start_date"]))
+    reused_start = start_date or date.today()
+    num_days = int(source["num_days"])
+    source_daily = source.get("daily_times") or {
+        (source_start + timedelta(days=offset)).isoformat(): source["times"]
+        for offset in range(num_days)
+    }
+    shifted_daily = [
+        (
+            reused_start + (date.fromisoformat(day) - source_start),
+            tuple(times),
+        )
+        for day, times in sorted(source_daily.items())
+    ]
+    custom_days = []
+    for day, times in shifted_daily:
+        if custom_days and (
+            custom_days[-1]["times"] == times
+            and date.fromisoformat(custom_days[-1]["end_date"]) + timedelta(days=1)
+            == day
+        ):
+            custom_days[-1]["end_date"] = day.isoformat()
+            continue
+        custom_days.append({
+            "start_date": day.isoformat(),
+            "end_date": day.isoformat(),
+            "times": times,
+        })
+    form_values = {
+        **form_defaults(),
+        "mode": "custom",
+        "experiment_name": _copy_name(source["run"]["name"]),
+        "researcher": source["run"].get("researcher"),
+        "notes": source["run"].get("notes"),
+        "analysis_enabled": source.get("analysis") is not None,
+        "start_date": reused_start.isoformat(),
+        "num_days": num_days,
+        "replicates": int(source.get("replicates", 1)),
+        "replicate_interval_seconds": int(
+            source.get("replicate_interval_seconds", 0)
+        ),
+        "custom_days": [
+            {
+                "start_date": block["start_date"],
+                "end_date": block["end_date"],
+                "windows": _time_windows(block["times"]),
+            }
+            for block in custom_days
+        ],
+    }
+    form = ScheduleFormData(**form_values)
+    preview = build_schedule_preview(**form.preview_arguments())
+    run = {
+        "id": str(uuid4()),
+        "name": form.experiment_name,
+        "researcher": form.researcher,
+        "notes": form.notes,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    schedule = {**preview.as_schedule_dict(), "run": run}
+    if source.get("analysis") is not None:
+        schedule["analysis"] = AnalysisProfile.from_dict(
+            source["analysis"]
+        ).to_dict()
+    draft = ScheduleDraft(
+        created_at=datetime.now(timezone.utc).isoformat(),
+        form=form,
+        schedule=schedule,
+        schedule_hash=_schedule_hash(schedule),
+        camera_aligned=False,
+        camera_preview_ready=False,
     )
     atomic_write_text(path, draft.model_dump_json(indent=2) + "\n")
     return draft
@@ -235,3 +318,41 @@ def activate_schedule_draft(
 
 def _schedule_hash(schedule: dict[str, Any]) -> str:
     return hashlib.sha256(schedule_json(schedule).encode()).hexdigest()
+
+
+def _copy_name(value: str) -> str:
+    suffix = " copy"
+    return f"{value[:80 - len(suffix)].rstrip()}{suffix}"
+
+
+def _time_windows(values: tuple[str, ...]) -> list[dict[str, str | int]]:
+    """Represent exact capture times as a compact set of regular windows."""
+    minutes = [
+        int(value.split(":", maxsplit=1)[0]) * 60
+        + int(value.split(":", maxsplit=1)[1])
+        for value in values
+    ]
+    windows = []
+    index = 0
+    while index < len(minutes):
+        start = minutes[index]
+        if index == len(minutes) - 1:
+            end = start
+            step = 1
+            index += 1
+        else:
+            step = minutes[index + 1] - start
+            end_index = index + 1
+            while (
+                end_index + 1 < len(minutes)
+                and minutes[end_index + 1] - minutes[end_index] == step
+            ):
+                end_index += 1
+            end = minutes[end_index]
+            index = end_index + 1
+        windows.append({
+            "start": f"{start // 60:02d}:{start % 60:02d}",
+            "end": f"{end // 60:02d}:{end % 60:02d}",
+            "step_minutes": step,
+        })
+    return windows

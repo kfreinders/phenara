@@ -18,6 +18,8 @@ describe("experiment history", () => {
     expect(source).toContain("Full experiment configuration");
     expect(source).toContain("Copy schedule JSON");
     expect(source).toContain("Download schedule JSON");
+    expect(source).toContain("Use this configuration");
+    expect(source).toContain("replace_existing_draft");
     expect(source).toContain("<h3>Metadata</h3>");
     expect(source).toContain("record-outcome-bar");
     expect(source).toContain("Schedule SHA-256");
