@@ -7,7 +7,7 @@ describe("experiment history", () => {
     expect(source).toContain("Experiment history");
     expect(source).not.toContain("Metadata ledger");
     expect(source).toContain("raw_data_blocker_ids");
-    expect(source).toContain("metadata records retained");
+    expect(source).not.toContain("metadata records retained");
     expect(source).toContain("Raw files exported and removed");
     expect(source).toContain("history-row-link");
     expect(source).not.toContain("View experiment");
