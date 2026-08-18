@@ -147,7 +147,13 @@ class RunArchive:
             raise ValueError("The run manifest version is unsupported.")
         return manifest
 
-    def mark_ended(self, state: str, *, superseded_by: str | None = None) -> None:
+    def mark_ended(
+        self,
+        state: str,
+        *,
+        superseded_by: str | None = None,
+        analysis_summary: dict[str, Any] | None = None,
+    ) -> None:
         if state not in {"completed", "superseded", "cancelled"}:
             raise ValueError("Unsupported terminal run state.")
         with self._lock:
@@ -182,6 +188,7 @@ class RunArchive:
             manifest["state"] = state
             manifest["ended_at"] = datetime.now(timezone.utc).isoformat()
             manifest["superseded_by"] = superseded_by if state == "superseded" else None
+            manifest["analysis_summary"] = analysis_summary
             atomic_write_text(
                 self.manifest_path,
                 json.dumps(manifest, indent=2) + "\n",
@@ -202,6 +209,7 @@ class RunArchive:
                         state=state,
                         ended_at=manifest["ended_at"],
                         capture_summary=self.status_payload(now)["summary"],
+                        analysis_summary=analysis_summary,
                         superseded_by=superseded_by,
                     )
             if state in {"completed", "cancelled"} or (

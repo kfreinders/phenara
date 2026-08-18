@@ -117,6 +117,50 @@ def test_run_archive_records_terminal_outcome(tmp_path):
     assert row["capture_summary"]["total"] == 0
 
 
+def test_run_archive_records_terminal_analysis_summary(tmp_path):
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    archive = RunArchive(
+        tmp_path / "captures", schedule(), "a" * 64, [], registry
+    )
+    analysis = {"total": 2, "succeeded": 2, "failed": 0}
+
+    archive.mark_ended("completed", analysis_summary=analysis)
+
+    assert registry.get(schedule()["run"]["id"])["analysis_summary"] == analysis
+    assert json.loads(archive.manifest_path.read_text())["analysis_summary"] == analysis
+
+
+def test_reconcile_preserves_analysis_summary_for_legacy_manifest(tmp_path):
+    output_root = tmp_path / "captures"
+    archive = RunArchive(output_root, schedule(), "a" * 64, [])
+    archive.mark_ended("completed")
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    registry.register(
+        schedule=schedule(),
+        schedule_hash="a" * 64,
+        dataset_name=archive.directory.name,
+        state="completed",
+        ended_at=NOW,
+    )
+    registry.update_terminal(
+        schedule()["run"]["id"],
+        state="completed",
+        ended_at=NOW,
+        capture_summary={"total": 0},
+        analysis_summary={"total": 1, "succeeded": 1},
+    )
+    manifest = json.loads(archive.manifest_path.read_text())
+    manifest.pop("analysis_summary", None)
+    archive.manifest_path.write_text(json.dumps(manifest))
+
+    registry.reconcile(output_root)
+
+    assert registry.get(schedule()["run"]["id"])["analysis_summary"] == {
+        "total": 1,
+        "succeeded": 1,
+    }
+
+
 def test_empty_superseded_run_is_not_retained(tmp_path):
     registry = ExperimentRegistry(tmp_path / "registry.sqlite")
     archive = RunArchive(

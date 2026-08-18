@@ -584,7 +584,10 @@ def run_scheduler_until_reload(
                         )
                     )
                 ):
-                    run_archive.mark_ended("completed")
+                    run_archive.mark_ended(
+                        "completed",
+                        analysis_summary=payload.get("analysis"),
+                    )
                 return payload
 
             heartbeat.set_capture_status_provider(capture_status)

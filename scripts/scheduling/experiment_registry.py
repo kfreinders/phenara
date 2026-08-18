@@ -134,12 +134,13 @@ class ExperimentRegistry:
             database.execute(
                 """
                 UPDATE experiments SET state=?, ended_at=?,
-                    capture_summary_json=?, analysis_summary_json=?,
+                    capture_summary_json=?,
+                    analysis_summary_json=COALESCE(?, analysis_summary_json),
                     superseded_by=?, updated_at=? WHERE run_id=?
                 """,
                 (
                     state, ended_at, json.dumps(capture_summary),
-                    json.dumps(analysis_summary) if analysis_summary else None,
+                    json.dumps(analysis_summary) if analysis_summary is not None else None,
                     superseded_by, datetime.now(timezone.utc).isoformat(), run_id,
                 ),
             )
@@ -263,6 +264,7 @@ class ExperimentRegistry:
                             manifest_path.parent / "capture-events.jsonl",
                             manifest["schedule"],
                         ),
+                        analysis_summary=manifest.get("analysis_summary"),
                         superseded_by=manifest.get("superseded_by"),
                     )
             except (OSError, ValueError, TypeError, KeyError) as exc:
