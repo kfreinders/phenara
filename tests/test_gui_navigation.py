@@ -44,7 +44,8 @@ def test_camera_alignment_is_a_guarded_schedule_step():
     source = (FRONTEND / "pages" / "CameraPage.jsx").read_text()
 
     assert 'params.get("workflow") !== "schedule"' in source
-    assert 'api("/api/schedule/draft/camera"' in source
+    assert '"/api/schedule/draft/camera"' in source
+    assert '{ method: "POST" }' in source
     assert "acquireCameraPreview" in source
     assert "getUserMedia" not in source
     assert "Confirm alignment" in source
