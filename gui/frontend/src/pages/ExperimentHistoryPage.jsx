@@ -22,7 +22,7 @@ export function ExperimentHistoryPage() {
   if (!data && !error) return <Loading label="Loading experiment history" />;
   if (!data) return <ErrorNotice error={error} />;
   return <section className="history-page">
-    <header className="react-page-heading"><span className="eyebrow">Metadata ledger</span><h2>Experiment history</h2><p>Phenopi retains reproducible metadata for the latest {data.terminal_limit} experiments without keeping their raw images on the Pi.</p></header>
+    <header className="react-page-heading"><h2>Experiment history</h2><p>Phenopi retains reproducible metadata for the latest {data.terminal_limit} experiments without keeping their raw images on the Pi.</p></header>
     {data.raw_data_blocker_ids.length > 0 && <section className="card history-cleanup-alert" role="alert"><div><h3>Raw experiment data still occupies the Pi</h3><p>Download and remove it before activating another experiment.</p></div><Link className="primary-link" to={`/experiments/${data.raw_data_blocker_ids[0]}`}>Review and clean up</Link></section>}
     {data.warnings.length > 0 && <div className="schedule-warning">Some experiment folders could not be indexed: {data.warnings.join("; ")}</div>}
     <section className="card history-controls"><label>Search<input value={query} onChange={event => setQuery(event.target.value)} placeholder="Experiment or researcher" /></label><label>State<select value={state} onChange={event => setState(event.target.value)}><option value="all">All states</option>{Object.entries(labels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><div><strong>{data.retained_terminal_count} / {data.terminal_limit}</strong><span>metadata records retained</span></div></section>

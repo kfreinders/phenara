@@ -175,6 +175,17 @@ def finished_experiment(run_id: UUID) -> dict:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     details["capture_summary"] = (row or {}).get("capture_summary")
     details["analysis_summary"] = (row or {}).get("analysis_summary")
+    if row is not None:
+        details.update({
+            "schedule": row["schedule"],
+            "state": row["state"],
+            "created_at": row["created_at"],
+            "ended_at": row["ended_at"],
+            "archive_name": row["archive_name"],
+            "archive_sha256": row["archive_sha256"],
+            "exported_at": row["exported_at"],
+            "deleted_at": row["deleted_at"],
+        })
     return details
 
 
@@ -296,6 +307,8 @@ def _registry_details(row: dict) -> dict:
         "start_date": row["start_date"],
         "end_date": row["end_date"],
         "state": row["state"],
+        "created_at": row["created_at"],
+        "ended_at": row["ended_at"],
         "capture_summary": row["capture_summary"],
         "analysis_summary": row["analysis_summary"],
         "archive_ready": False,
