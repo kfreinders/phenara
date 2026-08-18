@@ -136,6 +136,9 @@ def capture_image_path(
 def delete_experiment_data(
     output_root: Path,
     schedule: dict[str, Any],
+    *,
+    history_record: dict[str, Any] | None = None,
+    deleted_at: str | None = None,
 ) -> None:
     directory, archive = experiment_paths(output_root, schedule)
     manifest = _read_matching_manifest(directory, schedule)
@@ -144,17 +147,36 @@ def delete_experiment_data(
     if archive.is_symlink():
         raise ExperimentExportError("The experiment archive path is unsafe.")
     marker = deleted_run_marker(output_root, schedule["run"]["id"])
+    marker_payload = {
+        "version": 2 if history_record is not None else 1,
+        "run_id": schedule["run"]["id"],
+        "schedule_hash": schedule["hash"],
+        "deleted_at": deleted_at or datetime.now(timezone.utc).isoformat(),
+    }
+    if history_record is not None:
+        required = (
+            "schedule", "schedule_hash", "dataset_name", "state", "ended_at",
+            "archive_name", "archive_size_bytes", "archive_sha256", "exported_at",
+        )
+        if any(history_record.get(key) is None for key in required) or (
+            history_record["schedule"]["run"]["id"] != schedule["run"]["id"]
+            or history_record["schedule_hash"] != schedule["hash"]
+        ):
+            raise ExperimentExportError(
+                "The experiment history record is incomplete or mismatched."
+            )
+        marker_payload["experiment"] = {
+            key: history_record.get(key)
+            for key in (
+                "schedule", "schedule_hash", "dataset_name", "state",
+                "loaded_at", "ended_at", "superseded_by", "capture_summary",
+                "analysis_summary", "archive_name", "archive_size_bytes",
+                "archive_sha256", "exported_at",
+            )
+        }
     atomic_write_text(
         marker,
-        json.dumps(
-            {
-                "run_id": schedule["run"]["id"],
-                "schedule_hash": schedule["hash"],
-                "deleted_at": datetime.now(timezone.utc).isoformat(),
-            },
-            indent=2,
-        )
-        + "\n",
+        json.dumps(marker_payload, indent=2) + "\n",
     )
     archive.unlink(missing_ok=True)
     shutil.rmtree(directory)

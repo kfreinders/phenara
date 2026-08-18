@@ -268,25 +268,103 @@ class ExperimentRegistry:
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 warnings.append(f"{manifest_path.parent.name}: {exc}")
         deleted_root = output_root / ".phenopi-deleted-runs"
-        for marker_path in deleted_root.glob("*.json") if deleted_root.exists() else []:
+        marker_paths = (
+            list(deleted_root.glob("*.json")) if deleted_root.exists() else []
+        )
+        rich_markers = []
+        legacy_markers = []
+        for marker_path in marker_paths:
             try:
                 marker = json.loads(marker_path.read_text())
-                row = self.get(str(marker["run_id"]))
-                if row is not None and row["data_present"] and row["exported_at"]:
-                    with self._connect() as database:
-                        database.execute(
-                            """UPDATE experiments SET data_present=0,
-                               archive_ready=0, deleted_at=?, updated_at=?
-                               WHERE run_id=?""",
-                            (
-                                marker["deleted_at"], marker["deleted_at"],
-                                marker["run_id"],
-                            ),
-                        )
+                if marker.get("version") == 2 and isinstance(
+                    marker.get("experiment"), dict
+                ):
+                    experiment = marker["experiment"]
+                    order = str(
+                        experiment.get("ended_at")
+                        or experiment["schedule"]["run"]["created_at"]
+                    )
+                    rich_markers.append((order, marker_path, marker))
+                else:
+                    legacy_markers.append((marker_path, marker))
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                warnings.append(f"{marker_path.name}: {exc}")
+        rich_markers.sort(
+            key=lambda item: item[0],
+            reverse=True,
+        )
+        for _, marker_path, marker in rich_markers[:TERMINAL_EXPERIMENT_LIMIT]:
+            try:
+                self._restore_deleted(marker)
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                warnings.append(f"{marker_path.name}: {exc}")
+        for marker_path, marker in legacy_markers:
+            try:
+                self._reconcile_legacy_deleted(marker)
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 warnings.append(f"{marker_path.name}: {exc}")
         self.prune()
+        for _, marker_path, marker in rich_markers:
+            try:
+                if self.get(str(marker["run_id"])) is None:
+                    marker_path.unlink(missing_ok=True)
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                warnings.append(f"{marker_path.name}: {exc}")
         return warnings
+
+    def _restore_deleted(self, marker: dict[str, Any]) -> None:
+        experiment = marker["experiment"]
+        schedule = experiment["schedule"]
+        run_id = str(marker["run_id"])
+        if schedule["run"]["id"] != run_id:
+            raise ValueError("The deleted history record has a mismatched run ID.")
+        if experiment["schedule_hash"] != marker["schedule_hash"]:
+            raise ValueError(
+                "The deleted history record has a mismatched schedule hash."
+            )
+        state = experiment["state"]
+        if state not in TERMINAL_STATES:
+            raise ValueError("The deleted history record has a non-terminal state.")
+        self.register(
+            schedule=schedule,
+            schedule_hash=experiment["schedule_hash"],
+            dataset_name=experiment["dataset_name"],
+            state=state,
+            loaded_at=experiment.get("loaded_at"),
+            ended_at=experiment["ended_at"],
+            superseded_by=experiment.get("superseded_by"),
+            data_present=False,
+        )
+        self.update_terminal(
+            run_id,
+            state=state,
+            ended_at=experiment["ended_at"],
+            capture_summary=experiment.get("capture_summary") or {},
+            analysis_summary=experiment.get("analysis_summary"),
+            superseded_by=experiment.get("superseded_by"),
+        )
+        self.mark_deleted(
+            run_id,
+            archive_name=experiment["archive_name"],
+            archive_size_bytes=int(experiment["archive_size_bytes"]),
+            archive_sha256=experiment["archive_sha256"],
+            exported_at=experiment["exported_at"],
+            deleted_at=marker["deleted_at"],
+        )
+
+    def _reconcile_legacy_deleted(self, marker: dict[str, Any]) -> None:
+        row = self.get(str(marker["run_id"]))
+        if row is not None and row["data_present"] and row["exported_at"]:
+            with self._connect() as database:
+                database.execute(
+                    """UPDATE experiments SET data_present=0,
+                       archive_ready=0, deleted_at=?, updated_at=?
+                       WHERE run_id=?""",
+                    (
+                        marker["deleted_at"], marker["deleted_at"],
+                        marker["run_id"],
+                    ),
+                )
 
 
 def _end_date(schedule: dict[str, Any]) -> str:

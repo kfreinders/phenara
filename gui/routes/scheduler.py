@@ -229,7 +229,17 @@ def remove_finished_experiment(
             archive_sha256=archive_sha256,
             exported_at=now,
         )
-        delete_experiment_data(CAPTURE_OUTPUT_ROOT, schedule)
+        history_record = registry.get(str(run_id))
+        if history_record is None:
+            raise ExperimentExportError(
+                "The experiment history record is unavailable."
+            )
+        delete_experiment_data(
+            CAPTURE_OUTPUT_ROOT,
+            schedule,
+            history_record=history_record,
+            deleted_at=now,
+        )
         registry.mark_deleted(
             str(run_id),
             archive_name=archive_name,

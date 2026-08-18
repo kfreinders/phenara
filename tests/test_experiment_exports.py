@@ -133,6 +133,16 @@ def test_deletion_removes_only_the_matching_dataset_and_zip(tmp_path):
     assert details["archive_ready"] is False
 
 
+def test_deletion_rejects_incomplete_history_record(tmp_path):
+    _, schedule, run = completed_dataset(tmp_path)
+
+    with pytest.raises(ExperimentExportError, match="incomplete or mismatched"):
+        delete_experiment_data(tmp_path, schedule, history_record={})
+
+    assert run.directory.is_dir()
+    assert run.archive_path.is_file()
+
+
 def test_deleted_finished_run_is_hidden_from_scheduler_status(
     tmp_path,
     monkeypatch,
@@ -238,3 +248,60 @@ def test_experiment_history_lists_cleaned_metadata(tmp_path, monkeypatch):
 
     assert payload["experiments"][0]["run_id"] == str(run_id)
     assert payload["experiments"][0]["data_present"] is False
+
+
+def test_deleted_history_is_rebuilt_after_registry_loss(tmp_path):
+    run_id, schedule, run = completed_dataset(tmp_path)
+    registry_path = tmp_path / "runtime" / REGISTRY_FILENAME
+    registry = ExperimentRegistry(registry_path)
+    configured = configured_schedule(schedule)
+    registry.register(
+        schedule=configured,
+        schedule_hash=schedule["hash"],
+        dataset_name=run.directory.name,
+        state="completed",
+        loaded_at=NOW.isoformat(),
+        ended_at=NOW.isoformat(),
+    )
+    registry.update_terminal(
+        str(run_id),
+        state="completed",
+        ended_at=NOW.isoformat(),
+        capture_summary={"total": 1, "succeeded": 1, "failed": 0, "missed": 0},
+        analysis_summary={"status": "complete"},
+    )
+    registry.record_export(
+        str(run_id),
+        archive_name=run.archive_path.name,
+        archive_size_bytes=run.archive_path.stat().st_size,
+        archive_sha256="f" * 64,
+        exported_at=NOW.isoformat(),
+    )
+    delete_experiment_data(
+        tmp_path,
+        schedule,
+        history_record=registry.get(str(run_id)),
+        deleted_at=NOW.isoformat(),
+    )
+    registry.mark_deleted(
+        str(run_id),
+        archive_name=run.archive_path.name,
+        archive_size_bytes=12,
+        archive_sha256="f" * 64,
+        exported_at=NOW.isoformat(),
+        deleted_at=NOW.isoformat(),
+    )
+    registry_path.unlink()
+
+    rebuilt = ExperimentRegistry(registry_path)
+    warnings = rebuilt.reconcile(tmp_path)
+    row = rebuilt.get(str(run_id))
+
+    assert warnings == []
+    assert row["schedule"] == configured
+    assert row["state"] == "completed"
+    assert row["capture_summary"]["succeeded"] == 1
+    assert row["analysis_summary"] == {"status": "complete"}
+    assert row["data_present"] is False
+    assert row["archive_sha256"] == "f" * 64
+    assert row["deleted_at"] == NOW.isoformat()

@@ -170,3 +170,46 @@ def test_registry_prunes_only_cleaned_records_beyond_200(tmp_path):
 
     assert registry.get(raw_run_id)["data_present"] is True
     assert registry.retention()["retained_terminal_count"] == 200
+
+
+def test_rebuild_restores_only_the_latest_200_deleted_records(tmp_path):
+    deleted_root = tmp_path / "captures" / ".phenopi-deleted-runs"
+    deleted_root.mkdir(parents=True)
+    run_ids = []
+    for number in range(1, 202):
+        run_id = str(UUID(int=number))
+        run_ids.append(run_id)
+        configured = schedule(run_id)
+        timestamp = f"2026-08-13T00:{number // 60:02d}:{number % 60:02d}+00:00"
+        configured["run"]["created_at"] = timestamp
+        marker = {
+            "version": 2,
+            "run_id": run_id,
+            "schedule_hash": f"{number:064x}",
+            "deleted_at": timestamp,
+            "experiment": {
+                "schedule": configured,
+                "schedule_hash": f"{number:064x}",
+                "dataset_name": f"dataset-{number}",
+                "state": "completed",
+                "loaded_at": timestamp,
+                "ended_at": timestamp,
+                "superseded_by": None,
+                "capture_summary": {"total": 1, "succeeded": 1},
+                "analysis_summary": None,
+                "archive_name": f"dataset-{number}.zip",
+                "archive_size_bytes": number,
+                "archive_sha256": f"{number:064x}",
+                "exported_at": timestamp,
+            },
+        }
+        (deleted_root / f"{run_id}.json").write_text(json.dumps(marker))
+
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    warnings = registry.reconcile(tmp_path / "captures")
+
+    assert warnings == []
+    assert registry.retention()["retained_terminal_count"] == 200
+    assert registry.get(run_ids[0]) is None
+    assert registry.get(run_ids[-1])["data_present"] is False
+    assert len(list(deleted_root.glob("*.json"))) == 200
