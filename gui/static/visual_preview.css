@@ -110,6 +110,10 @@
 .text-button { color: var(--red); background: transparent; }
 .review-action-buttons .text-button { border: 1px solid #fecdca; background: #fff; }
 .review-action-buttons button, .review-action-buttons .button-link { min-height: 2.85rem; white-space: nowrap; }
+.review-action-buttons .review-icon-action { display: grid; place-items: center; width: 2.85rem; min-width: 2.85rem; padding: 0; }
+.review-icon-action svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.review-action-buttons .review-icon-action--danger { color: #b42318; border: 1px solid #fecdca; background: #fff; }
+.review-action-buttons .review-icon-action--danger:hover, .review-action-buttons .review-icon-action--danger:focus-visible { color: #912018; border-color: #f97066; background: #fff4f3; }
 .blocked-copy { color: var(--red) !important; }
 .activation-status { display: grid; justify-items: center; gap: 1rem; padding: 3rem; text-align: center; }
 .activation-status h2 { margin: .2rem 0; }
