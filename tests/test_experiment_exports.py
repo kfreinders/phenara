@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import json
+import shutil
 from uuid import UUID, uuid4
 
 import pytest
@@ -324,3 +325,60 @@ def test_deleted_history_is_rebuilt_after_registry_loss(tmp_path):
     assert row["data_present"] is False
     assert row["archive_sha256"] == "f" * 64
     assert row["deleted_at"] == NOW.isoformat()
+
+
+def test_interrupted_deletion_remains_a_raw_data_blocker(
+    tmp_path,
+    monkeypatch,
+):
+    run_id, schedule, run = completed_dataset(tmp_path)
+    registry_path = tmp_path / "runtime" / REGISTRY_FILENAME
+    registry = ExperimentRegistry(registry_path)
+    registry.register(
+        schedule=configured_schedule(schedule),
+        schedule_hash=schedule["hash"],
+        dataset_name=run.directory.name,
+        state="completed",
+        ended_at=NOW.isoformat(),
+    )
+    registry.update_terminal(
+        str(run_id),
+        state="completed",
+        ended_at=NOW.isoformat(),
+        capture_summary={"total": 1, "succeeded": 1},
+    )
+    registry.record_export(
+        str(run_id),
+        archive_name=run.archive_path.name,
+        archive_size_bytes=run.archive_path.stat().st_size,
+        archive_sha256="f" * 64,
+        exported_at=NOW.isoformat(),
+    )
+    original_rmtree = shutil.rmtree
+
+    def fail_cleanup(_path):
+        raise OSError("simulated interrupted cleanup")
+
+    monkeypatch.setattr(shutil, "rmtree", fail_cleanup)
+    with pytest.raises(OSError, match="interrupted cleanup"):
+        delete_experiment_data(
+            tmp_path,
+            schedule,
+            history_record=registry.get(str(run_id)),
+            deleted_at=NOW.isoformat(),
+        )
+    marker_path = deleted_run_marker(tmp_path, str(run_id))
+    assert json.loads(marker_path.read_text())["deletion_complete"] is False
+    assert run.directory.is_dir()
+
+    registry_path.unlink()
+    rebuilt = ExperimentRegistry(registry_path)
+    assert rebuilt.reconcile(tmp_path) == []
+    assert rebuilt.get(str(run_id))["data_present"] is True
+    assert rebuilt.retention()["can_activate"] is False
+
+    monkeypatch.setattr(shutil, "rmtree", original_rmtree)
+    original_rmtree(run.directory)
+    assert rebuilt.reconcile(tmp_path) == []
+    assert rebuilt.get(str(run_id))["data_present"] is False
+    assert json.loads(marker_path.read_text())["deletion_complete"] is True

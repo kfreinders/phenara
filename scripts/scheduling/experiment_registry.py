@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .make_schedule import atomic_write_text
+
 
 REGISTRY_FILENAME = "experiment-registry.sqlite"
 TERMINAL_EXPERIMENT_LIMIT = 200
@@ -297,7 +299,26 @@ class ExperimentRegistry:
         )
         for _, marker_path, marker in rich_markers[:TERMINAL_EXPERIMENT_LIMIT]:
             try:
-                self._restore_deleted(marker)
+                deletion_complete = marker.get("deletion_complete", True) is True
+                if not deletion_complete:
+                    experiment = marker["experiment"]
+                    dataset = output_root / experiment["dataset_name"]
+                    if dataset.parent.resolve() != output_root.resolve():
+                        raise ValueError(
+                            "The deleted history record has an unsafe path."
+                        )
+                    archive = dataset.with_suffix(".zip")
+                    if not dataset.exists() and not archive.exists():
+                        marker["deletion_complete"] = True
+                        atomic_write_text(
+                            marker_path,
+                            json.dumps(marker, indent=2) + "\n",
+                        )
+                        deletion_complete = True
+                self._restore_deleted(
+                    marker,
+                    data_present=not deletion_complete,
+                )
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 warnings.append(f"{marker_path.name}: {exc}")
         for marker_path, marker in legacy_markers:
@@ -314,7 +335,12 @@ class ExperimentRegistry:
                 warnings.append(f"{marker_path.name}: {exc}")
         return warnings
 
-    def _restore_deleted(self, marker: dict[str, Any]) -> None:
+    def _restore_deleted(
+        self,
+        marker: dict[str, Any],
+        *,
+        data_present: bool = False,
+    ) -> None:
         experiment = marker["experiment"]
         schedule = experiment["schedule"]
         run_id = str(marker["run_id"])
@@ -335,7 +361,7 @@ class ExperimentRegistry:
             loaded_at=experiment.get("loaded_at"),
             ended_at=experiment["ended_at"],
             superseded_by=experiment.get("superseded_by"),
-            data_present=False,
+            data_present=data_present,
         )
         self.update_terminal(
             run_id,
@@ -345,6 +371,8 @@ class ExperimentRegistry:
             analysis_summary=experiment.get("analysis_summary"),
             superseded_by=experiment.get("superseded_by"),
         )
+        if data_present:
+            return
         self.mark_deleted(
             run_id,
             archive_name=experiment["archive_name"],

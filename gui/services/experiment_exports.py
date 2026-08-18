@@ -152,6 +152,7 @@ def delete_experiment_data(
         "run_id": schedule["run"]["id"],
         "schedule_hash": schedule["hash"],
         "deleted_at": deleted_at or datetime.now(timezone.utc).isoformat(),
+        "deletion_complete": False,
     }
     if history_record is not None:
         required = (
@@ -180,6 +181,8 @@ def delete_experiment_data(
     )
     archive.unlink(missing_ok=True)
     shutil.rmtree(directory)
+    marker_payload["deletion_complete"] = True
+    atomic_write_text(marker, json.dumps(marker_payload, indent=2) + "\n")
 
 
 def _read_matching_manifest(

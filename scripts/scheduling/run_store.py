@@ -42,6 +42,20 @@ def deleted_run_marker(output_root: Path, run_id: str) -> Path:
     return output_root / DELETED_RUNS_DIRECTORY / f"{run_id}.json"
 
 
+def deleted_run_is_complete(output_root: Path, run_id: str) -> bool:
+    """Return whether a deletion marker confirms that cleanup completed."""
+    marker = deleted_run_marker(output_root, run_id)
+    try:
+        payload = json.loads(marker.read_text())
+    except FileNotFoundError:
+        return False
+    except (OSError, ValueError, TypeError):
+        # Preserve the historical fail-safe: an unreadable tombstone must not
+        # allow a deleted run to be recreated.
+        return marker.exists()
+    return payload.get("deletion_complete", True) is True
+
+
 class RunArchive:
     """Portable run manifest and append-only capture outcome ledger."""
 
@@ -87,7 +101,7 @@ class RunArchive:
             )
 
     def _initialize(self, schedule: dict[str, Any]) -> None:
-        if deleted_run_marker(self.directory.parent, self.run["id"]).is_file():
+        if deleted_run_is_complete(self.directory.parent, self.run["id"]):
             self._state = "deleted"
             return
         existing_path = self._find_existing_manifest(self.directory.parent)
@@ -159,10 +173,10 @@ class RunArchive:
         with self._lock:
             if self._state == "deleted" or (
                 not self.manifest_path.exists()
-                and deleted_run_marker(
+                and deleted_run_is_complete(
                     self.directory.parent,
                     self.run["id"],
-                ).is_file()
+                )
             ):
                 self._state = "deleted"
                 return
