@@ -8,6 +8,7 @@ import { ScheduleReviewPage } from "./pages/ScheduleReviewPage";
 import { ActivationPage } from "./pages/ActivationPage";
 import { CameraPage } from "./pages/CameraPage";
 import { ExperimentDownloadPage } from "./pages/ExperimentDownloadPage";
+import { ExperimentHistoryPage } from "./pages/ExperimentHistoryPage";
 import { AnalysisSetupPage } from "./pages/AnalysisSetupPage";
 import { CaptureModePage } from "./pages/CaptureModePage";
 import { DirectoryAnalysisPage } from "./pages/DirectoryAnalysisPage";
@@ -84,6 +85,7 @@ function Shell() {
       </a></div></div></header>
     <nav className="primary-tabs" aria-label="Primary navigation">
       <NavLink to="/scheduler">Experiments</NavLink>
+      <NavLink to="/experiments">History</NavLink>
       <NavLink to="/directory-analysis">Analyze directory</NavLink>
     </nav>
     <main className="layout"><Outlet /></main>
@@ -132,6 +134,7 @@ export default function App() {
     <Route path="analysis" element={<AnalysisSetupPage />} />
     <Route path="directory-analysis" element={<DirectoryAnalysisPage />} />
     <Route path="experiments/:runId" element={<ExperimentDownloadPage />} />
+    <Route path="experiments" element={<ExperimentHistoryPage />} />
     <Route path="*" element={<Navigate to="/scheduler" replace />} />
   </Route></Routes>;
 }

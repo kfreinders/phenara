@@ -237,13 +237,16 @@ def test_run_id_cannot_be_reused_for_another_schedule(tmp_path):
 
 def test_run_can_be_marked_superseded(tmp_path):
     archive = RunArchive(tmp_path, schedule(), "a" * 64, [NOW])
+    archive.record(scheduled_at=NOW, status="succeeded", message="ok")
 
     archive.mark_ended("superseded", superseded_by=str(uuid4()))
+    archive._archive_thread.join(timeout=5)
 
     manifest = json.loads(archive.manifest_path.read_text())
     assert manifest["state"] == "superseded"
     assert manifest["ended_at"] is not None
     assert manifest["superseded_by"] is not None
+    assert archive.archive_path.exists()
 
 
 def test_run_can_be_marked_cancelled(tmp_path):

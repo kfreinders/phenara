@@ -42,6 +42,7 @@ export async function apiBlob(path, options = {}) {
 
 export const getSchedulerStatus = () => api("/api/scheduler/status");
 export const getSchedulerHealth = () => api("/api/scheduler/health");
+export const getExperiments = () => api("/api/experiments");
 export const getDevelopmentStatus = () => api("/api/development/status");
 export const setDevelopmentMode = enabled => api(
   "/api/development/status",

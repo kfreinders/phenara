@@ -6,10 +6,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from phenopi.config import (
+    CAPTURE_OUTPUT_ROOT,
     DEFAULT_SCHEDULE_PATH,
     SCHEDULE_DRAFT_PATH,
     SCHEDULER_HEARTBEAT_PATH,
 )
+from scripts.scheduling.experiment_registry import ExperimentRegistry, REGISTRY_FILENAME
 from gui.services.schedule_comparison import compare_schedules
 from gui.services.schedule_drafts import (
     activate_schedule_draft,
@@ -168,11 +170,27 @@ def activate_schedule(request: ActivationRequest) -> dict:
         discard_schedule_draft(SCHEDULE_DRAFT_PATH)
         return {"schedule_hash": draft.schedule_hash, "already_active": True}
 
+    retention = _experiment_retention()
+    if not retention["can_activate"]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Export and delete the previous experiment data before "
+                "activating another experiment."
+            ),
+        )
+
     replacing_schedule = bool(
         active and active.get("lifecycle") in {"active", "upcoming"}
     )
-    if replacing_schedule and not request.confirm_active_replacement:
-        return {"confirmation_required": True, "review": review}
+    if replacing_schedule:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cancel the current experiment, export its data, and delete "
+                "the local copy before activating another schedule."
+            ),
+        )
 
     try:
         activated_hash = activate_schedule_draft(
@@ -207,6 +225,7 @@ def _review_payload(draft, preview, status: dict) -> dict:
     storage = assess_schedule_storage(preview.total_captures, status.get("storage"))
     scheduler_responding = status["status"] not in {"stale", "unavailable"}
     comparison = compare_schedules(preview, comparable)
+    retention = _experiment_retention()
     return {
         "draft": draft.model_dump(),
         "preview": {
@@ -230,6 +249,7 @@ def _review_payload(draft, preview, status: dict) -> dict:
         },
         "scheduler_status": status,
         "storage_assessment": storage,
+        "experiment_retention": retention,
         "scheduler_responding": scheduler_responding,
         "analysis_requested": draft.form.analysis_enabled,
         "analysis_ready": draft.schedule.get("analysis") is not None,
@@ -237,6 +257,8 @@ def _review_payload(draft, preview, status: dict) -> dict:
         "camera_preview_ready": draft.camera_preview_ready,
         "can_activate": (
             scheduler_responding
+            and retention["can_activate"]
+            and comparable is None
             and storage["status"] != "insufficient"
             and draft.camera_aligned
             and (
@@ -250,3 +272,11 @@ def _review_payload(draft, preview, status: dict) -> dict:
         "replacing_active": bool(active and active.get("lifecycle") == "active"),
         "replacing_schedule": bool(comparable),
     }
+
+
+def _experiment_retention() -> dict:
+    registry = ExperimentRegistry(
+        SCHEDULER_HEARTBEAT_PATH.parent / REGISTRY_FILENAME
+    )
+    warnings = registry.reconcile(CAPTURE_OUTPUT_ROOT)
+    return {**registry.retention(), "warnings": warnings}

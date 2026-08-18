@@ -25,6 +25,7 @@ from .commands import (
     read_schedule_cancellation,
 )
 from .heartbeat import HEARTBEAT_INTERVAL_SECONDS, SchedulerHeartbeat
+from .experiment_registry import ExperimentRegistry, REGISTRY_FILENAME
 from .schedule import Schedule
 from .schedule_validation import (
     ScheduleValidationError,
@@ -456,6 +457,8 @@ def run_scheduler_until_reload(
         )
         return False
 
+    registry = ExperimentRegistry(config.runtime_dir / REGISTRY_FILENAME)
+    registry.reconcile(config.output_dir)
     run_archive = None
     if cfg.run is not None:
         try:
@@ -464,6 +467,7 @@ def run_scheduler_until_reload(
                 cfg,
                 schedule_hash,
                 run_times,
+                registry,
             )
             now = datetime.now(tz)
             run_archive.record_unreported_past(
@@ -580,7 +584,10 @@ def run_scheduler_until_reload(
                         )
                     )
                 ):
-                    run_archive.mark_ended("completed")
+                    run_archive.mark_ended(
+                        "completed",
+                        analysis_summary=payload.get("analysis"),
+                    )
                 return payload
 
             heartbeat.set_capture_status_provider(capture_status)
