@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
+import json
 from uuid import UUID
+
+import pytest
 
 from scripts.scheduling.experiment_registry import ExperimentRegistry
 from scripts.scheduling.run_store import RunArchive
@@ -28,6 +31,64 @@ def test_registry_round_trips_reproducible_metadata(tmp_path):
     assert row["schedule"] == schedule()
     assert row["capture_summary"] == {"succeeded": 1}
     assert registry.retention()["raw_data_blockers"][0]["run_id"] == row["run_id"]
+
+
+@pytest.mark.parametrize("replacement_hash", ["b" * 64, "a" * 64])
+def test_registry_rejects_reusing_run_id_for_another_schedule(
+    tmp_path,
+    replacement_hash,
+):
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+    original = schedule()
+    replacement = schedule()
+    replacement["run"]["name"] = "Different experiment"
+    registry.register(
+        schedule=original,
+        schedule_hash="a" * 64,
+        dataset_name="original",
+    )
+
+    with pytest.raises(ValueError, match="another schedule"):
+        registry.register(
+            schedule=replacement,
+            schedule_hash=replacement_hash,
+            dataset_name="replacement",
+        )
+
+    row = registry.get(original["run"]["id"])
+    assert row["schedule_hash"] == "a" * 64
+    assert row["schedule"] == original
+    assert row["dataset_name"] == "original"
+
+
+def test_reconcile_warns_without_overwriting_duplicate_run_id(tmp_path):
+    output_root = tmp_path / "captures"
+    original = schedule()
+    replacement = schedule()
+    replacement["run"]["name"] = "Different experiment"
+    for directory_name, configured, schedule_hash in (
+        ("a-original", original, "a" * 64),
+        ("b-replacement", replacement, "b" * 64),
+    ):
+        directory = output_root / directory_name
+        directory.mkdir(parents=True)
+        (directory / "run.json").write_text(json.dumps({
+            "run": configured["run"],
+            "schedule": configured,
+            "schedule_hash": schedule_hash,
+            "state": "active",
+            "loaded_at": NOW,
+        }))
+    registry = ExperimentRegistry(tmp_path / "registry.sqlite")
+
+    warnings = registry.reconcile(output_root)
+
+    row = registry.get(original["run"]["id"])
+    assert row["schedule_hash"] == "a" * 64
+    assert row["dataset_name"] == "a-original"
+    assert warnings == [
+        "b-replacement: This run ID is already associated with another schedule."
+    ]
 
 
 def test_deleted_metadata_is_retained_without_raw_data(tmp_path):

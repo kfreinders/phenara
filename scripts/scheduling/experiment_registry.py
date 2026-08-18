@@ -79,7 +79,7 @@ class ExperimentRegistry:
         end_date = _end_date(schedule)
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as database:
-            database.execute(
+            cursor = database.execute(
                 """
                 INSERT INTO experiments (
                     run_id, name, researcher, notes, schedule_hash,
@@ -102,6 +102,8 @@ class ExperimentRegistry:
                     data_present=excluded.data_present,
                     superseded_by=excluded.superseded_by,
                     updated_at=excluded.updated_at
+                WHERE experiments.schedule_hash=excluded.schedule_hash
+                  AND experiments.schedule_json=excluded.schedule_json
                 """,
                 (
                     run["id"], run["name"], run.get("researcher"),
@@ -111,6 +113,10 @@ class ExperimentRegistry:
                     ended_at, dataset_name, int(data_present), superseded_by, now,
                 ),
             )
+            if cursor.rowcount == 0:
+                raise ValueError(
+                    "This run ID is already associated with another schedule."
+                )
 
     def update_terminal(
         self,
