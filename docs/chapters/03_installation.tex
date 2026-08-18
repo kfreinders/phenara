@@ -4,18 +4,18 @@
 
 Automated image acquisition requires a Raspberry Pi 4 or newer, a Raspberry Pi
 Camera Module v3, Raspberry Pi OS Bookworm or newer, a working system clock,
-and sufficient storage. Phenopi runs as separate scheduler and web-interface
+and sufficient storage. Phenara runs as separate scheduler and web-interface
 systemd services.
 
-\subsection{Installing Phenopi}
+\subsection{Installing Phenara}
 
-Phenopi does not require a dedicated Linux account or fixed installation path.
+Phenara does not require a dedicated Linux account or fixed installation path.
 Clone the repository as the user that should run the services and invoke the
 installer from that checkout.
 
 \begin{verbatim}
-git clone https://github.com/kfreinders/phenopi.git
-cd phenopi
+git clone https://github.com/kfreinders/phenara.git
+cd phenara
 ./deploy/install.sh
 \end{verbatim}
 
@@ -27,7 +27,7 @@ The installer performs the following operations:
   \item installs the declared Python dependencies;
   \item installs and builds the React frontend;
   \item creates the runtime and capture directories;
-  \item writes \texttt{/etc/phenopi/phenopi.env};
+  \item writes \texttt{/etc/phenara/phenara.env};
   \item installs, enables, and starts both systemd services.
 \end{itemize}
 
@@ -39,19 +39,19 @@ be included explicitly with \texttt{--enable-development-mode}.
 
 \subsection{Shared Configuration}
 
-All paths are defined by \texttt{phenopi/config.py}. The installed services
+All paths are defined by \texttt{phenara/config.py}. The installed services
 load the same environment file, containing:
 
 \begin{verbatim}
-PHENOPI_ROOT
-PHENOPI_RUNTIME_DIR
-PHENOPI_CAPTURE_DIR
-PHENOPI_DEVELOPMENT_AVAILABLE
-PHENOPI_VENV_DIR
-PHENOPI_PYTHON
-PHENOPI_TIMEZONE
-PHENOPI_GUI_HOST
-PHENOPI_GUI_PORT
+PHENARA_ROOT
+PHENARA_RUNTIME_DIR
+PHENARA_CAPTURE_DIR
+PHENARA_DEVELOPMENT_AVAILABLE
+PHENARA_VENV_DIR
+PHENARA_PYTHON
+PHENARA_TIMEZONE
+PHENARA_GUI_HOST
+PHENARA_GUI_PORT
 \end{verbatim}
 
 Without installation, defaults are derived from the current source checkout.
@@ -61,8 +61,8 @@ Runtime data, captures, and the virtual environment are stored in
 \subsection{Checking the Services}
 
 \begin{verbatim}
-sudo systemctl status phenopi-scheduler phenopi-gui
-sudo journalctl -u phenopi-scheduler -u phenopi-gui -f
+sudo systemctl status phenara-scheduler phenara-gui
+sudo journalctl -u phenara-scheduler -u phenara-gui -f
 \end{verbatim}
 
 Both services start at boot and restart automatically after a failure. The web

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { buildCaptureProgress, easeOutCubic } from "./SchedulerPage";
 
 const capture = (time, replicate, status) => ({
@@ -53,5 +54,14 @@ describe("schedule progress animation", () => {
     expect(easeOutCubic(0)).toBe(0);
     expect(easeOutCubic(0.5)).toBeCloseTo(0.875);
     expect(easeOutCubic(1)).toBe(1);
+  });
+});
+
+describe("empty scheduler actions", () => {
+  it("does not duplicate the review action when a draft exists", () => {
+    const source = readFileSync(new URL("./SchedulerPage.jsx", import.meta.url), "utf8");
+
+    expect(source).toContain('data.draft_state === "none"');
+    expect(source).not.toContain('data.draft_state === "ready" ? "/schedule/review"');
   });
 });

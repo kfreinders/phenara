@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from gui.services.scheduler_status import read_scheduler_status
-from phenopi.development import (
+from phenara.development import (
     read_development_mode,
     validate_development_images,
     write_development_mode,

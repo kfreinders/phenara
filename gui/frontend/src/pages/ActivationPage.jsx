@@ -10,7 +10,7 @@ export function ActivationPage() {
   const confirmed = Boolean(expected && data?.schedule?.hash === expected);
   useEffect(() => { if (!confirmed) return; setCountdown(5); const timer = window.setInterval(() => setCountdown(value => { if (value <= 1) { window.clearInterval(timer); navigate("/scheduler"); return 0; } return value - 1; }), 1000); return () => window.clearInterval(timer); }, [confirmed, navigate]);
   if (!validHash) return <><WorkflowSteps current={analysisEnabled ? 6 : 5} analysisEnabled={analysisEnabled} /><section className="activation-status card"><div className="activation-icon activation-icon--rejected">!</div><h2>Invalid activation link</h2><p>This link does not identify a schedule that can be confirmed.</p><Link className="button-link secondary" to="/schedule">Start schedule setup</Link></section></>;
-  let kind = "waiting", title = "Waiting for scheduler confirmation", message = "The schedule was activated safely. Phenopi is waiting for the scheduler to load it.";
+  let kind = "waiting", title = "Waiting for scheduler confirmation", message = "The schedule was activated safely. Phenara is waiting for the scheduler to load it.";
   if (confirmed) { kind = "confirmed"; title = "Schedule confirmed"; message = "The scheduler has loaded the schedule and is ready."; }
   else if (data?.status === "invalid_schedule" && Date.now() - started >= 35000) { kind = "rejected"; title = "Scheduler rejected the schedule"; message = data.message; }
   else if (Date.now() - started >= 90000) { title = "Schedule not yet confirmed"; message = "The scheduler has not confirmed the schedule within 90 seconds. It may still be loading."; }

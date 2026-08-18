@@ -140,7 +140,7 @@ def poll_analysis_queue(
         "_executor",
         ThreadPoolExecutor(
             max_workers=DEFAULT_ANALYSIS_WORKERS,
-            thread_name_prefix="phenopi-analysis",
+            thread_name_prefix="phenara-analysis",
         ),
     )
     active_ids = {capture["capture_id"] for capture in futures.values()}

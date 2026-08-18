@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
-from phenopi.config import (
+from phenara.config import (
     CAPTURE_OUTPUT_ROOT,
     DEFAULT_SCHEDULE_PATH,
     SCHEDULE_DRAFT_PATH,

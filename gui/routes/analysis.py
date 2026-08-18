@@ -7,7 +7,7 @@ from gui.services.analysis_preview import (
     build_analysis_preview,
     build_roi_preview,
 )
-from phenopi.config import SCHEDULE_DRAFT_PATH
+from phenara.config import SCHEDULE_DRAFT_PATH
 from gui.services.schedule_drafts import (
     attach_analysis_profile_to_draft,
     load_current_schedule_draft,

@@ -28,7 +28,7 @@ export function CaptureModePage({ edit = false }) {
   const continueToSchedule = () => navigate(`/schedule/build${edit ? "/edit" : ""}?analysis=${selected ? "1" : "0"}`);
 
   return <><WorkflowSteps current={1} analysisEnabled={selected === true} /><section className="capture-mode-page card">
-    <div className="card-header"><div><h2>Choose capture mode</h2><p>Step 1: choose what Phenopi should do with each captured image.</p></div></div>
+    <div className="card-header"><div><h2>Choose capture mode</h2><p>Step 1: choose what Phenara should do with each captured image.</p></div></div>
     <ErrorNotice error={error} />
     {loaded && <><div className="analysis-choice-options capture-mode-options">
       <button type="button" className={selected === false ? "is-selected" : ""} aria-pressed={selected === false} onClick={() => setSelected(false)}><CameraModeIcon /><span>Images only</span><small>Capture and store photographs without running the canopy pipeline.</small></button>

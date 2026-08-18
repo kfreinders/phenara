@@ -30,7 +30,7 @@ export function SchedulerPage() {
     {(data.schedule_error || data.schedule_is_last_reported || data.status === "invalid_schedule") && <div className="schedule-warning">{data.schedule_error ?? (data.schedule_is_last_reported ? "Showing the last reported schedule; live state cannot currently be confirmed." : "The edited schedule was rejected. The valid schedule remains active.")}</div>}
     {storageRisk && <div className="storage-risk" role="alert">Storage risk: remaining captures need approximately {formatBytes(schedule.estimated_remaining_storage_bytes)}, but only {formatBytes(data.storage.free_bytes)} is free.</div>}
     <NextAction schedule={schedule} draftState={data.draft_state} summary={data.capture_summary} analysis={data.analysis_summary} />
-    {!schedule ? <section className="card schedule-empty"><h3>No schedule loaded</h3><Link className="primary-link" to={data.draft_state === "ready" ? "/schedule/review" : "/schedule"}>{data.draft_state === "ready" ? "Review draft" : "Create a schedule"}</Link></section> : <Dashboard data={data} />}
+    {!schedule ? data.draft_state === "none" ? <section className="card schedule-empty"><h3>No schedule loaded</h3><Link className="primary-link" to="/schedule">Create a schedule</Link></section> : null : <Dashboard data={data} />}
   </section>;
 }
 

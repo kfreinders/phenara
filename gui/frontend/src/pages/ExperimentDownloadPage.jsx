@@ -163,9 +163,9 @@ export function ExperimentDownloadPage() {
       <div><span className="eyebrow">Free storage</span><h3>Has the download finished?</h3><p>Open or safely store the ZIP on your computer first. You can then remove the Pi’s copy to make room for the next experiment.</p></div>
       <label className="cleanup-check"><input type="checkbox" checked={saved} onChange={event => setSaved(event.target.checked)} /> I have saved the downloaded archive somewhere safe.</label>
       {saved && <label className="cleanup-name">Type <strong>{data.run.name}</strong> to confirm deletion<input value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="off" /></label>}
-      <button className="danger-button" disabled={!saved || !nameMatches || deleting} onClick={removeData}>{deleting ? "Deleting experiment data…" : "Delete data from Phenopi"}</button>
+      <button className="danger-button" disabled={!saved || !nameMatches || deleting} onClick={removeData}>{deleting ? "Deleting experiment data…" : "Delete data from Phenara"}</button>
       <small>This permanently deletes both the dataset and its ZIP archive from the Raspberry Pi.</small>
     </section>}
-    {deleted && <section className="card cleanup-complete"><span aria-hidden="true">✓</span><div><h3>Local experiment data deleted</h3><p>The copy on Phenopi has been removed. Keep your downloaded archive safe.</p></div><Link className="primary-link" to="/schedule">Create next schedule</Link></section>}
+    {deleted && <section className="card cleanup-complete"><span aria-hidden="true">✓</span><div><h3>Local experiment data deleted</h3><p>The copy on Phenara has been removed. Keep your downloaded archive safe.</p></div><Link className="primary-link" to="/schedule">Create next schedule</Link></section>}
   </section>;
 }

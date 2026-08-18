@@ -74,7 +74,7 @@ function Shell() {
   };
 
   return <>
-    <header className="topbar"><div className="topbar-inner"><div><h1 className="phenopi-identity"><span className="phenopi-identity-controls"><a className="phenopi-home-link" href="/scheduler"><span className="phenopi-wordmark">Phenopi</span></a><span ref={contactTrigger} className="phenopi-about-trigger" role="button" tabIndex="0" aria-label="About Phenopi and its developer" aria-haspopup="dialog" aria-expanded={contactOpen} onClick={() => setContactOpen(true)} onKeyDown={(event) => {
+    <header className="topbar"><div className="topbar-inner"><div><h1 className="phenara-identity"><span className="phenara-identity-controls"><a className="phenara-home-link" href="/scheduler"><span className="phenara-wordmark">Phenara</span></a><span ref={contactTrigger} className="phenara-about-trigger" role="button" tabIndex="0" aria-label="About Phenara and its developer" aria-haspopup="dialog" aria-expanded={contactOpen} onClick={() => setContactOpen(true)} onKeyDown={(event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         setContactOpen(true);
@@ -89,27 +89,27 @@ function Shell() {
       <NavLink to="/directory-analysis">Analyze directory</NavLink>
     </nav>
     <main className="layout"><Outlet /></main>
-    {contactOpen && <div className="phenopi-modal-backdrop" role="presentation" onMouseDown={(event) => {
+    {contactOpen && <div className="phenara-modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) setContactOpen(false);
     }}>
-      <section className="phenopi-modal" role="dialog" aria-modal="true" aria-labelledby="phenopi-modal-title">
-        <button ref={contactClose} className="phenopi-modal-close" type="button" aria-label="Close developer information" onClick={() => setContactOpen(false)}>×</button>
-        <span className="phenopi-modal-eyebrow">Phenopi</span>
-        <h2 id="phenopi-modal-title">Koen Reinders</h2>
-        <p className="phenopi-modal-role">Developer and MSc researcher</p>
-        <p className="phenopi-modal-summary">Phenopi is my MSc thesis research project for developing a modular, reproducible plant phenotyping platform. It schedules repeat image capture, supports camera alignment and calibrated canopy analysis, and tracks and exports experiment results.</p>
-        <div className="phenopi-modal-links">
+      <section className="phenara-modal" role="dialog" aria-modal="true" aria-labelledby="phenara-modal-title">
+        <button ref={contactClose} className="phenara-modal-close" type="button" aria-label="Close developer information" onClick={() => setContactOpen(false)}>×</button>
+        <span className="phenara-modal-eyebrow">Phenara</span>
+        <h2 id="phenara-modal-title">Koen Reinders</h2>
+        <p className="phenara-modal-role">Developer and MSc researcher</p>
+        <p className="phenara-modal-summary">Phenara is my MSc thesis research project for developing a modular, reproducible plant phenotyping platform. It schedules repeat image capture, supports camera alignment and calibrated canopy analysis, and tracks and exports experiment results.</p>
+        <div className="phenara-modal-links">
           <a href="mailto:koenf.reinders@gmail.com"><span>Email</span><strong>koenf.reinders@gmail.com</strong></a>
-          <a href="https://github.com/kfreinders/phenopi" target="_blank" rel="noreferrer"><span>GitHub</span><strong>kfreinders/phenopi</strong></a>
+          <a href="https://github.com/kfreinders/phenara" target="_blank" rel="noreferrer"><span>GitHub</span><strong>kfreinders/phenara</strong></a>
         </div>
       </section>
     </div>}
-    {developmentOpen && <div className="phenopi-modal-backdrop" role="presentation" onMouseDown={(event) => {
+    {developmentOpen && <div className="phenara-modal-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) setDevelopmentOpen(false);
     }}>
-      <section className="phenopi-modal development-modal" role="dialog" aria-modal="true" aria-labelledby="development-modal-title">
-        <button className="phenopi-modal-close" type="button" aria-label="Close development mode confirmation" onClick={() => setDevelopmentOpen(false)}>×</button>
-        <span className="phenopi-modal-eyebrow">Capture source</span>
+      <section className="phenara-modal development-modal" role="dialog" aria-modal="true" aria-labelledby="development-modal-title">
+        <button className="phenara-modal-close" type="button" aria-label="Close development mode confirmation" onClick={() => setDevelopmentOpen(false)}>×</button>
+        <span className="phenara-modal-eyebrow">Capture source</span>
         <h2 id="development-modal-title">{development?.enabled ? "Disable development mode?" : "Enable development mode?"}</h2>
         <p>{development?.enabled ? "New experiments will use the Raspberry Pi camera again." : "Camera previews and scheduled captures will use sample images. Exported runs will be marked as development data."}</p>
         {developmentError && <div className="alert error" role="alert">{developmentError.message}</div>}

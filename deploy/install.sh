@@ -4,15 +4,15 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-VENV_DIR="${PHENOPI_VENV_DIR:-$PROJECT_ROOT/.venv}"
-RUNTIME_DIR="${PHENOPI_RUNTIME_DIR:-$PROJECT_ROOT/runtime}"
-CAPTURE_DIR="${PHENOPI_CAPTURE_DIR:-$PROJECT_ROOT/captures}"
-DEVELOPMENT_IMAGE_DIR="${PHENOPI_DEVELOPMENT_IMAGE_DIR:-$PROJECT_ROOT/development/sample-images}"
-TIMEZONE="${PHENOPI_TIMEZONE:-Europe/Amsterdam}"
-GUI_HOST="${PHENOPI_GUI_HOST:-0.0.0.0}"
-GUI_PORT="${PHENOPI_GUI_PORT:-8000}"
-ENV_DIR="/etc/phenopi"
-ENV_FILE="$ENV_DIR/phenopi.env"
+VENV_DIR="${PHENARA_VENV_DIR:-$PROJECT_ROOT/.venv}"
+RUNTIME_DIR="${PHENARA_RUNTIME_DIR:-$PROJECT_ROOT/runtime}"
+CAPTURE_DIR="${PHENARA_CAPTURE_DIR:-$PROJECT_ROOT/captures}"
+DEVELOPMENT_IMAGE_DIR="${PHENARA_DEVELOPMENT_IMAGE_DIR:-$PROJECT_ROOT/development/sample-images}"
+TIMEZONE="${PHENARA_TIMEZONE:-Europe/Amsterdam}"
+GUI_HOST="${PHENARA_GUI_HOST:-0.0.0.0}"
+GUI_PORT="${PHENARA_GUI_PORT:-8000}"
+ENV_DIR="/etc/phenara"
+ENV_FILE="$ENV_DIR/phenara.env"
 SYSTEMD_DIR="/etc/systemd/system"
 SKIP_SYSTEM_PACKAGES=false
 START_SERVICES=true
@@ -29,8 +29,8 @@ Options:
                           Make sample-image development mode available.
   -h, --help              Show this help.
 
-Path and network settings can be overridden with PHENOPI_* environment
-variables. The repository location itself becomes PHENOPI_ROOT.
+Path and network settings can be overridden with PHENARA_* environment
+variables. The repository location itself becomes PHENARA_ROOT.
 EOF
 }
 
@@ -48,7 +48,7 @@ done
 if ((EUID == 0)); then
   INSTALL_USER="${SUDO_USER:-}"
   if [[ -z "$INSTALL_USER" || "$INSTALL_USER" == "root" ]]; then
-    echo "[install] Run this as the user who should own Phenopi, not directly as root." >&2
+    echo "[install] Run this as the user who should own Phenara, not directly as root." >&2
     exit 1
   fi
 else
@@ -88,12 +88,12 @@ import sys
 
 source, destination, user, group, root, python, runtime, captures = sys.argv[1:]
 replacements = {
-    "@PHENOPI_USER@": user,
-    "@PHENOPI_GROUP@": group,
-    "@PHENOPI_ROOT@": root,
-    "@PHENOPI_PYTHON@": python,
-    "@PHENOPI_RUNTIME_DIR@": runtime,
-    "@PHENOPI_CAPTURE_DIR@": captures,
+    "@PHENARA_USER@": user,
+    "@PHENARA_GROUP@": group,
+    "@PHENARA_ROOT@": root,
+    "@PHENARA_PYTHON@": python,
+    "@PHENARA_RUNTIME_DIR@": runtime,
+    "@PHENARA_CAPTURE_DIR@": captures,
 }
 contents = Path(source).read_text()
 for marker, value in replacements.items():
@@ -152,16 +152,16 @@ run_as_install_user env HOME="$INSTALL_HOME" \
 environment_tmp="$(mktemp)"
 trap 'rm -f -- "${environment_tmp:-}"' EXIT
 {
-  write_environment_value PHENOPI_ROOT "$PROJECT_ROOT"
-  write_environment_value PHENOPI_RUNTIME_DIR "$RUNTIME_DIR"
-  write_environment_value PHENOPI_CAPTURE_DIR "$CAPTURE_DIR"
-  write_environment_value PHENOPI_DEVELOPMENT_IMAGE_DIR "$DEVELOPMENT_IMAGE_DIR"
-  write_environment_value PHENOPI_DEVELOPMENT_AVAILABLE "$ENABLE_DEVELOPMENT_MODE"
-  write_environment_value PHENOPI_VENV_DIR "$VENV_DIR"
-  write_environment_value PHENOPI_PYTHON "$PYTHON_BIN"
-  write_environment_value PHENOPI_TIMEZONE "$TIMEZONE"
-  write_environment_value PHENOPI_GUI_HOST "$GUI_HOST"
-  write_environment_value PHENOPI_GUI_PORT "$GUI_PORT"
+  write_environment_value PHENARA_ROOT "$PROJECT_ROOT"
+  write_environment_value PHENARA_RUNTIME_DIR "$RUNTIME_DIR"
+  write_environment_value PHENARA_CAPTURE_DIR "$CAPTURE_DIR"
+  write_environment_value PHENARA_DEVELOPMENT_IMAGE_DIR "$DEVELOPMENT_IMAGE_DIR"
+  write_environment_value PHENARA_DEVELOPMENT_AVAILABLE "$ENABLE_DEVELOPMENT_MODE"
+  write_environment_value PHENARA_VENV_DIR "$VENV_DIR"
+  write_environment_value PHENARA_PYTHON "$PYTHON_BIN"
+  write_environment_value PHENARA_TIMEZONE "$TIMEZONE"
+  write_environment_value PHENARA_GUI_HOST "$GUI_HOST"
+  write_environment_value PHENARA_GUI_PORT "$GUI_PORT"
   printf 'PYTHONUNBUFFERED=1\n'
 } > "$environment_tmp"
 
@@ -171,22 +171,22 @@ sudo install -o root -g root -m 0644 "$environment_tmp" "$ENV_FILE"
 
 echo "[install] Installing systemd services"
 render_unit \
-  "$PROJECT_ROOT/deploy/systemd/phenopi-scheduler.service.in" \
-  "$SYSTEMD_DIR/phenopi-scheduler.service"
+  "$PROJECT_ROOT/deploy/systemd/phenara-scheduler.service.in" \
+  "$SYSTEMD_DIR/phenara-scheduler.service"
 render_unit \
-  "$PROJECT_ROOT/deploy/systemd/phenopi-gui.service.in" \
-  "$SYSTEMD_DIR/phenopi-gui.service"
+  "$PROJECT_ROOT/deploy/systemd/phenara-gui.service.in" \
+  "$SYSTEMD_DIR/phenara-gui.service"
 
 sudo systemctl daemon-reload
-sudo systemctl enable phenopi-scheduler.service phenopi-gui.service
+sudo systemctl enable phenara-scheduler.service phenara-gui.service
 if [[ "$START_SERVICES" == true ]]; then
-  sudo systemctl restart phenopi-scheduler.service phenopi-gui.service
+  sudo systemctl restart phenara-scheduler.service phenara-gui.service
 fi
 
 address="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
 echo
-echo "[install] Phenopi installation complete"
+echo "[install] Phenara installation complete"
 echo "[install] Project: $PROJECT_ROOT"
 echo "[install] User:    $INSTALL_USER"
 echo "[install] Web GUI: http://${address:-localhost}:$GUI_PORT"
-echo "[install] Status:  sudo systemctl status phenopi-scheduler phenopi-gui"
+echo "[install] Status:  sudo systemctl status phenara-scheduler phenara-gui"

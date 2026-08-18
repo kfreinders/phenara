@@ -11,7 +11,7 @@ from gui.services.schedule_form import ScheduleFormData
 
 
 FRONTEND = (
-    __import__("phenopi.config", fromlist=["PROJECT_ROOT"]).PROJECT_ROOT
+    __import__("phenara.config", fromlist=["PROJECT_ROOT"]).PROJECT_ROOT
     / "gui"
     / "frontend"
     / "src"

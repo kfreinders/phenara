@@ -381,7 +381,7 @@ def atomic_write_text(output: Path, contents: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate Phenopi schedule JSON files."
+        description="Generate Phenara schedule JSON files."
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)

@@ -15,13 +15,13 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from phenopi.config import (
+from phenara.config import (
     DEVELOPMENT_IMAGE_DIR,
     DEVELOPMENT_AVAILABLE,
     DEVELOPMENT_MODE_PATH,
     RUNTIME_DIR,
 )
-from phenopi.development import (
+from phenara.development import (
     DEVELOPMENT_MARKER_NAME,
     calibration_image,
     read_development_mode,
@@ -137,7 +137,7 @@ def _write_development_capture(
         marker = destination.parent / DEVELOPMENT_MARKER_NAME
         if not marker.exists():
             marker.write_text(
-                "This dataset was generated in Phenopi development mode.\n"
+                "This dataset was generated in Phenara development mode.\n"
                 "Capture images were copied from the configured sample-image directory.\n"
             )
     shutil.copyfile(source, temporary)
@@ -168,7 +168,7 @@ def camera_lock(path: Path):
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Capture one Phenopi image."
+        description="Capture one Phenara image."
     )
     destination = parser.add_mutually_exclusive_group(required=True)
     destination.add_argument("--output-dir", type=Path)

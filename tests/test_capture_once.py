@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from phenopi.development import write_development_mode
+from phenara.development import write_development_mode
 from scripts.capture import capture_once as capture_module
 
 

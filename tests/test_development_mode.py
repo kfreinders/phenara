@@ -7,7 +7,7 @@ from gui.services.development_mode import (
     development_status,
     set_development_mode,
 )
-from phenopi.development import (
+from phenara.development import (
     read_development_mode,
     sequence_images,
     validate_development_images,
@@ -101,7 +101,7 @@ def test_enabling_requires_calibration_and_capture_samples(tmp_path):
 def test_mode_state_write_is_atomic_and_creates_parent(tmp_path):
     mode = tmp_path / "missing" / "development-mode.json"
 
-    from phenopi.development import write_development_mode
+    from phenara.development import write_development_mode
 
     write_development_mode(mode, True)
 

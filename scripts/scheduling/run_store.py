@@ -18,7 +18,7 @@ from .experiment_registry import ExperimentRegistry
 RUN_MANIFEST_VERSION = 1
 CAPTURE_EVENT_VERSION = 1
 _SAFE_NAME = re.compile(r"[^a-z0-9]+")
-DELETED_RUNS_DIRECTORY = ".phenopi-deleted-runs"
+DELETED_RUNS_DIRECTORY = ".phenara-deleted-runs"
 
 
 def validate_run_metadata(value: Any) -> dict[str, Any] | None:

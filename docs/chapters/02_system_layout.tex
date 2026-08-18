@@ -2,7 +2,7 @@
 
 \subsection{Overview}
 
-Phenopi is organized as a workflow rather than as a single application. The
+Phenara is organized as a workflow rather than as a single application. The
 main steps are image acquisition, image analysis, quality control, and growth
 analysis. Each step reads input files from the experiment directory and writes
 its own outputs, so intermediate results can be inspected before continuing. A
@@ -23,7 +23,7 @@ segmentation and trait extraction.
 
 \subsection{Software Components}
 
-Phenopi uses separate scripts for scheduling, image capture, image analysis,
+Phenara uses separate scripts for scheduling, image capture, image analysis,
 plotting, and growth analysis. The scheduler runs on the Raspberry Pi and
 starts capture jobs at the configured times. The capture script acquires
 individual images and saves them using timestamped filenames. The analysis
@@ -34,7 +34,7 @@ and summary files.
 
 \subsection{Directory Structure}
 
-A typical Phenopi project or experiment directory contains folders for captured
+A typical Phenara project or experiment directory contains folders for captured
 images, runtime files, scripts, and results. The exact contents may differ
 between installations, but the main folders should remain easy to identify.
 
@@ -58,7 +58,7 @@ between installations, but the main folders should remain easy to identify.
     fit=band,
     before computing xy={l=15pt},
   }
-  [phenopi/
+  [phenara/
     [captures/
       [capture\_20260508\_080000.jpg]
       [capture\_20260508\_080030.jpg]

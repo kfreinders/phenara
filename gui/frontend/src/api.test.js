@@ -15,7 +15,7 @@ describe("api", () => {
     await api("/api/test", { method: "post", body: "{}" });
 
     const options = fetch.mock.calls[0][1];
-    expect(options.headers.get("X-Phenopi-Request")).toBe("1");
+    expect(options.headers.get("X-Phenara-Request")).toBe("1");
     expect(options.headers.get("Content-Type")).toBe("application/json");
   });
 

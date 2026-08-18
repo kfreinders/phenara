@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from phenopi.config import SOURCE_ROOT, load_settings
+from phenara.config import SOURCE_ROOT, load_settings
 
 
 def test_settings_default_to_the_cloned_repository():
@@ -25,18 +25,18 @@ def test_settings_default_to_the_cloned_repository():
 
 
 def test_settings_use_one_environment_for_gui_and_scheduler_paths(tmp_path):
-    root = tmp_path / "installed phenopi"
+    root = tmp_path / "installed phenara"
     settings = load_settings({
-        "PHENOPI_ROOT": str(root),
-        "PHENOPI_RUNTIME_DIR": str(tmp_path / "state"),
-        "PHENOPI_CAPTURE_DIR": str(tmp_path / "data"),
-        "PHENOPI_DEVELOPMENT_IMAGE_DIR": str(tmp_path / "samples"),
-        "PHENOPI_DEVELOPMENT_AVAILABLE": "true",
-        "PHENOPI_VENV_DIR": str(tmp_path / "python"),
-        "PHENOPI_PYTHON": str(tmp_path / "python" / "bin" / "python"),
-        "PHENOPI_TIMEZONE": "UTC",
-        "PHENOPI_GUI_HOST": "127.0.0.1",
-        "PHENOPI_GUI_PORT": "8080",
+        "PHENARA_ROOT": str(root),
+        "PHENARA_RUNTIME_DIR": str(tmp_path / "state"),
+        "PHENARA_CAPTURE_DIR": str(tmp_path / "data"),
+        "PHENARA_DEVELOPMENT_IMAGE_DIR": str(tmp_path / "samples"),
+        "PHENARA_DEVELOPMENT_AVAILABLE": "true",
+        "PHENARA_VENV_DIR": str(tmp_path / "python"),
+        "PHENARA_PYTHON": str(tmp_path / "python" / "bin" / "python"),
+        "PHENARA_TIMEZONE": "UTC",
+        "PHENARA_GUI_HOST": "127.0.0.1",
+        "PHENARA_GUI_PORT": "8080",
     })
 
     assert settings.project_root == root
@@ -56,7 +56,7 @@ def test_configured_virtualenv_python_symlink_is_not_dereferenced(tmp_path):
     venv_python.parent.mkdir(parents=True)
     venv_python.symlink_to(interpreter)
 
-    settings = load_settings({"PHENOPI_PYTHON": str(venv_python)})
+    settings = load_settings({"PHENARA_PYTHON": str(venv_python)})
 
     assert settings.python_bin == venv_python
     assert settings.python_bin != interpreter
@@ -64,32 +64,32 @@ def test_configured_virtualenv_python_symlink_is_not_dereferenced(tmp_path):
 
 @pytest.mark.parametrize("port", ["invalid", "0", "65536"])
 def test_settings_reject_invalid_gui_port(port):
-    with pytest.raises(ValueError, match="PHENOPI_GUI_PORT"):
-        load_settings({"PHENOPI_GUI_PORT": port})
+    with pytest.raises(ValueError, match="PHENARA_GUI_PORT"):
+        load_settings({"PHENARA_GUI_PORT": port})
 
 
 def test_settings_reject_invalid_development_availability():
-    with pytest.raises(ValueError, match="PHENOPI_DEVELOPMENT_AVAILABLE"):
-        load_settings({"PHENOPI_DEVELOPMENT_AVAILABLE": "sometimes"})
+    with pytest.raises(ValueError, match="PHENARA_DEVELOPMENT_AVAILABLE"):
+        load_settings({"PHENARA_DEVELOPMENT_AVAILABLE": "sometimes"})
 
 
 def test_installer_generates_both_services_for_the_current_checkout():
     installer = (SOURCE_ROOT / "deploy" / "install.sh").read_text()
     scheduler = (
-        SOURCE_ROOT / "deploy/systemd/phenopi-scheduler.service.in"
+        SOURCE_ROOT / "deploy/systemd/phenara-scheduler.service.in"
     ).read_text()
-    gui = (SOURCE_ROOT / "deploy/systemd/phenopi-gui.service.in").read_text()
+    gui = (SOURCE_ROOT / "deploy/systemd/phenara-gui.service.in").read_text()
 
     assert 'PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"' in installer
     assert 'INSTALL_USER="${USER:-$(id -un)}"' in installer
     assert "python3 -m venv --system-site-packages" in installer
     assert '"$PIP_BIN" install -r' in installer
     assert 'npm --prefix "$PROJECT_ROOT/gui/frontend" run build' in installer
-    assert "systemctl enable phenopi-scheduler.service phenopi-gui.service" in installer
-    assert "PHENOPI_DEVELOPMENT_IMAGE_DIR" in installer
+    assert "systemctl enable phenara-scheduler.service phenara-gui.service" in installer
+    assert "PHENARA_DEVELOPMENT_IMAGE_DIR" in installer
     assert "--enable-development-mode" in installer
-    assert "PHENOPI_DEVELOPMENT_AVAILABLE" in installer
-    assert "EnvironmentFile=/etc/phenopi/phenopi.env" in scheduler
-    assert "EnvironmentFile=/etc/phenopi/phenopi.env" in gui
+    assert "PHENARA_DEVELOPMENT_AVAILABLE" in installer
+    assert "EnvironmentFile=/etc/phenara/phenara.env" in scheduler
+    assert "EnvironmentFile=/etc/phenara/phenara.env" in gui
     assert "-m scripts.scheduling.scheduler" in scheduler
     assert "-m gui.app" in gui

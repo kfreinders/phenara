@@ -14,7 +14,7 @@ from gui.services.schedule_drafts import (
     load_current_schedule_draft,
     record_camera_preview,
 )
-from phenopi.config import (
+from phenara.config import (
     CAMERA_PREVIEW_PATH,
     CAPTURE_SCRIPT_PATH,
     DEVELOPMENT_IMAGE_DIR,

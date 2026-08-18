@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gui.app import app
-from phenopi.config import PROJECT_ROOT
+from phenara.config import PROJECT_ROOT
 from gui.services.scheduler_status import (
     build_daily_activity,
     build_schedule_overview,

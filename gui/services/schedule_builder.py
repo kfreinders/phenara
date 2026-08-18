@@ -88,7 +88,7 @@ class SchedulePreview:
         time_point_word = "time point" if self.daily_time_points == 1 else "time points"
         replicate_word = "replicate" if self.replicates == 1 else "replicates"
         return (
-            f"Phenopi will capture {self.daily_captures} images per day "
+            f"Phenara will capture {self.daily_captures} images per day "
             f"across {self.daily_time_points} {time_point_word}, with "
             f"{self.replicates} technical {replicate_word} per time point."
         )

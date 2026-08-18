@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 
-# Phenopi runtime/data outputs
+# Phenara runtime/data outputs
 captures/
 runtime/
 results/
@@ -39,4 +39,5 @@ docs/*.pdf
 /pyvenv.cfg
 development/sample-images
 captures_control
+captures_original
 test_pics

@@ -42,7 +42,7 @@ def _boolean(environment: Mapping[str, str], name: str, default: bool = False) -
 
 
 @dataclass(frozen=True)
-class PhenopiSettings:
+class PhenaraSettings:
     project_root: Path
     runtime_dir: Path
     capture_dir: Path
@@ -64,46 +64,46 @@ class PhenopiSettings:
 
 def load_settings(
     environment: Mapping[str, str] | None = None,
-) -> PhenopiSettings:
+) -> PhenaraSettings:
     """Load all installation paths from one environment-driven source."""
     env = environment if environment is not None else os.environ
-    project_root = _path(env, "PHENOPI_ROOT", SOURCE_ROOT)
+    project_root = _path(env, "PHENARA_ROOT", SOURCE_ROOT)
     runtime_dir = _path(
         env,
-        "PHENOPI_RUNTIME_DIR",
+        "PHENARA_RUNTIME_DIR",
         project_root / "runtime",
     )
     capture_dir = _path(
         env,
-        "PHENOPI_CAPTURE_DIR",
+        "PHENARA_CAPTURE_DIR",
         project_root / "captures",
     )
     venv_dir = _path(
         env,
-        "PHENOPI_VENV_DIR",
+        "PHENARA_VENV_DIR",
         project_root / ".venv",
     )
-    configured_python = env.get("PHENOPI_PYTHON")
+    configured_python = env.get("PHENARA_PYTHON")
     python_bin = (
         _executable_path(configured_python)
         if configured_python
         else _executable_path(sys.executable)
     )
-    timezone_name = env.get("PHENOPI_TIMEZONE", "Europe/Amsterdam")
+    timezone_name = env.get("PHENARA_TIMEZONE", "Europe/Amsterdam")
     try:
         timezone = ZoneInfo(timezone_name)
     except (KeyError, ValueError) as exc:
         raise ValueError(
-            f"PHENOPI_TIMEZONE is not a valid timezone: {timezone_name}"
+            f"PHENARA_TIMEZONE is not a valid timezone: {timezone_name}"
         ) from exc
     try:
-        gui_port = int(env.get("PHENOPI_GUI_PORT", "8000"))
+        gui_port = int(env.get("PHENARA_GUI_PORT", "8000"))
     except ValueError as exc:
-        raise ValueError("PHENOPI_GUI_PORT must be an integer.") from exc
+        raise ValueError("PHENARA_GUI_PORT must be an integer.") from exc
     if not 1 <= gui_port <= 65535:
-        raise ValueError("PHENOPI_GUI_PORT must be between 1 and 65535.")
+        raise ValueError("PHENARA_GUI_PORT must be between 1 and 65535.")
 
-    return PhenopiSettings(
+    return PhenaraSettings(
         project_root=project_root,
         runtime_dir=runtime_dir,
         capture_dir=capture_dir,
@@ -116,17 +116,17 @@ def load_settings(
         capture_script=project_root / "scripts" / "capture" / "capture_once.py",
         development_image_dir=_path(
             env,
-            "PHENOPI_DEVELOPMENT_IMAGE_DIR",
+            "PHENARA_DEVELOPMENT_IMAGE_DIR",
             project_root / "development" / "sample-images",
         ),
         development_mode_path=runtime_dir / "development-mode.json",
         development_available=_boolean(
             env,
-            "PHENOPI_DEVELOPMENT_AVAILABLE",
+            "PHENARA_DEVELOPMENT_AVAILABLE",
         ),
         camera_preview_path=runtime_dir / "camera-preview.jpg",
         timezone=timezone,
-        gui_host=env.get("PHENOPI_GUI_HOST", "0.0.0.0"),
+        gui_host=env.get("PHENARA_GUI_HOST", "0.0.0.0"),
         gui_port=gui_port,
     )
 

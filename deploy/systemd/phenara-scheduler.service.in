@@ -1,15 +1,15 @@
 [Unit]
-Description=Phenopi experiment scheduler
+Description=Phenara experiment scheduler
 After=local-fs.target time-sync.target
 Wants=time-sync.target
 
 [Service]
 Type=simple
-User=@PHENOPI_USER@
-Group=@PHENOPI_GROUP@
-EnvironmentFile=/etc/phenopi/phenopi.env
-WorkingDirectory=@PHENOPI_ROOT@
-ExecStart="@PHENOPI_PYTHON@" -m scripts.scheduling.scheduler
+User=@PHENARA_USER@
+Group=@PHENARA_GROUP@
+EnvironmentFile=/etc/phenara/phenara.env
+WorkingDirectory=@PHENARA_ROOT@
+ExecStart="@PHENARA_PYTHON@" -m scripts.scheduling.scheduler
 Restart=always
 RestartSec=5
 KillSignal=SIGINT
@@ -19,7 +19,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths="@PHENOPI_RUNTIME_DIR@" "@PHENOPI_CAPTURE_DIR@"
+ReadWritePaths="@PHENARA_RUNTIME_DIR@" "@PHENARA_CAPTURE_DIR@"
 
 [Install]
 WantedBy=multi-user.target

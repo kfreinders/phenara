@@ -12,7 +12,7 @@ usage() {
 Usage: deploy/configure-direct-ethernet.sh [options]
 
 Configure a NetworkManager wired connection for direct, DHCP-enabled access to
-Phenopi. The reconnect is scheduled through systemd so it survives loss of SSH.
+Phenara. The reconnect is scheduled through systemd so it survives loss of SSH.
 
 Options:
   --connection NAME  NetworkManager connection name (default: Wired connection 1)
@@ -75,7 +75,7 @@ nmcli connection show "$CONNECTION" >/dev/null || {
 }
 
 SCRIPT_PATH="$(realpath -- "$0")"
-UNIT_NAME="phenopi-ethernet-reconfigure-$(date +%Y%m%d%H%M%S)-$$"
+UNIT_NAME="phenara-ethernet-reconfigure-$(date +%Y%m%d%H%M%S)-$$"
 
 echo "[ethernet] Updating '$CONNECTION' without interrupting the current link."
 sudo nmcli connection modify "$CONNECTION" \

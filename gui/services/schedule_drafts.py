@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
-from phenopi.config import (
+from phenara.config import (
     DEFAULT_SCHEDULE_PATH,
     SCHEDULE_DRAFT_PATH,
 )

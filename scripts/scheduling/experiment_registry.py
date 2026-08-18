@@ -271,7 +271,7 @@ class ExperimentRegistry:
                     )
             except (OSError, ValueError, TypeError, KeyError) as exc:
                 warnings.append(f"{manifest_path.parent.name}: {exc}")
-        deleted_root = output_root / ".phenopi-deleted-runs"
+        deleted_root = output_root / ".phenara-deleted-runs"
         marker_paths = (
             list(deleted_root.glob("*.json")) if deleted_root.exists() else []
         )

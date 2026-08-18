@@ -12,7 +12,7 @@ from gui.routes import (
     schedule_api,
     scheduler,
 )
-from phenopi.config import GUI_HOST, GUI_PORT, PROJECT_ROOT
+from phenara.config import GUI_HOST, GUI_PORT, PROJECT_ROOT
 
 
 def _secure_response(response, path: str):
@@ -35,7 +35,7 @@ def _secure_response(response, path: str):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Phenopi GUI",
+        title="Phenara GUI",
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -67,11 +67,11 @@ def create_app() -> FastAPI:
                     )
             if (
                 request.method in {"POST", "PUT", "PATCH", "DELETE"}
-                and request.headers.get("x-phenopi-request") != "1"
+                and request.headers.get("x-phenara-request") != "1"
             ):
                 return _secure_response(
                     JSONResponse(
-                        {"detail": "Missing Phenopi request marker."},
+                        {"detail": "Missing Phenara request marker."},
                         status_code=403,
                     ),
                     request.url.path,

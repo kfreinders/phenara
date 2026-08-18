@@ -217,7 +217,7 @@ def test_registry_prunes_only_cleaned_records_beyond_200(tmp_path):
 
 
 def test_rebuild_restores_only_the_latest_200_deleted_records(tmp_path):
-    deleted_root = tmp_path / "captures" / ".phenopi-deleted-runs"
+    deleted_root = tmp_path / "captures" / ".phenara-deleted-runs"
     deleted_root.mkdir(parents=True)
     run_ids = []
     for number in range(1, 202):

@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 
-from phenopi.config import (
+from phenara.config import (
     CAPTURE_OUTPUT_ROOT,
     SCHEDULE_DRAFT_PATH,
     SCHEDULER_COMMAND_PATH,

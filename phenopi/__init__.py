@@ -1,1 +1,0 @@
-"""Shared Phenopi application infrastructure."""

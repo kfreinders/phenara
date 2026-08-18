@@ -57,7 +57,7 @@ def test_api_rejects_invalid_or_excessive_content_lengths(length):
     status, _ = request(
         "POST",
         "/api/schedule/draft",
-        [("content-length", length), ("x-phenopi-request", "1")],
+        [("content-length", length), ("x-phenara-request", "1")],
     )
 
     assert status == 413

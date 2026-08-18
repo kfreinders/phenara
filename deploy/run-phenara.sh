@@ -7,7 +7,7 @@ while (($#)); do
   case "$1" in
     --enable-development-mode) ENABLE_DEVELOPMENT_MODE=true ;;
     -h|--help)
-      echo "Usage: deploy/run-phenopi.sh [--enable-development-mode]"
+      echo "Usage: deploy/run-phenara.sh [--enable-development-mode]"
       exit 0
       ;;
     *) echo "[deploy] Unknown option: $1" >&2; exit 2 ;;
@@ -18,21 +18,21 @@ done
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/gui/frontend"
-export PHENOPI_ROOT="${PHENOPI_ROOT:-$PROJECT_ROOT}"
-export PHENOPI_RUNTIME_DIR="${PHENOPI_RUNTIME_DIR:-$PHENOPI_ROOT/runtime}"
-export PHENOPI_CAPTURE_DIR="${PHENOPI_CAPTURE_DIR:-$PHENOPI_ROOT/captures}"
-export PHENOPI_DEVELOPMENT_IMAGE_DIR="${PHENOPI_DEVELOPMENT_IMAGE_DIR:-$PHENOPI_ROOT/development/sample-images}"
-export PHENOPI_DEVELOPMENT_AVAILABLE="$ENABLE_DEVELOPMENT_MODE"
-export PHENOPI_VENV_DIR="${PHENOPI_VENV_DIR:-$PHENOPI_ROOT/.venv}"
-export PHENOPI_PYTHON="${PHENOPI_PYTHON:-$PHENOPI_VENV_DIR/bin/python}"
-export PHENOPI_TIMEZONE="${PHENOPI_TIMEZONE:-Europe/Amsterdam}"
-export PHENOPI_GUI_HOST="${PHENOPI_GUI_HOST:-0.0.0.0}"
-export PHENOPI_GUI_PORT="${PHENOPI_GUI_PORT:-8000}"
-PYTHON_BIN="$PHENOPI_PYTHON"
+export PHENARA_ROOT="${PHENARA_ROOT:-$PROJECT_ROOT}"
+export PHENARA_RUNTIME_DIR="${PHENARA_RUNTIME_DIR:-$PHENARA_ROOT/runtime}"
+export PHENARA_CAPTURE_DIR="${PHENARA_CAPTURE_DIR:-$PHENARA_ROOT/captures}"
+export PHENARA_DEVELOPMENT_IMAGE_DIR="${PHENARA_DEVELOPMENT_IMAGE_DIR:-$PHENARA_ROOT/development/sample-images}"
+export PHENARA_DEVELOPMENT_AVAILABLE="$ENABLE_DEVELOPMENT_MODE"
+export PHENARA_VENV_DIR="${PHENARA_VENV_DIR:-$PHENARA_ROOT/.venv}"
+export PHENARA_PYTHON="${PHENARA_PYTHON:-$PHENARA_VENV_DIR/bin/python}"
+export PHENARA_TIMEZONE="${PHENARA_TIMEZONE:-Europe/Amsterdam}"
+export PHENARA_GUI_HOST="${PHENARA_GUI_HOST:-0.0.0.0}"
+export PHENARA_GUI_PORT="${PHENARA_GUI_PORT:-8000}"
+PYTHON_BIN="$PHENARA_PYTHON"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
-  PYTHON_BIN="${PHENOPI_FALLBACK_PYTHON:-python3}"
-  export PHENOPI_PYTHON="$PYTHON_BIN"
+  PYTHON_BIN="${PHENARA_FALLBACK_PYTHON:-python3}"
+  export PHENARA_PYTHON="$PYTHON_BIN"
 fi
 
 GUI_PID=""
@@ -71,7 +71,7 @@ command -v "$PYTHON_BIN" >/dev/null || {
   exit 1
 }
 
-mkdir -p "$PHENOPI_RUNTIME_DIR" "$PHENOPI_CAPTURE_DIR"
+mkdir -p "$PHENARA_RUNTIME_DIR" "$PHENARA_CAPTURE_DIR"
 
 echo "[deploy] Building React frontend"
 if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
@@ -82,7 +82,7 @@ npm --prefix "$FRONTEND_DIR" run build
 
 export PYTHONUNBUFFERED=1
 
-echo "[deploy] Starting GUI at http://$PHENOPI_GUI_HOST:$PHENOPI_GUI_PORT"
+echo "[deploy] Starting GUI at http://$PHENARA_GUI_HOST:$PHENARA_GUI_PORT"
 (
   cd "$PROJECT_ROOT"
   exec "$PYTHON_BIN" -m gui.app
@@ -96,12 +96,12 @@ echo "[deploy] Starting scheduler"
 ) &
 SCHEDULER_PID=$!
 
-echo "[deploy] Phenopi is running. Press Ctrl+C to stop both processes."
+echo "[deploy] Phenara is running. Press Ctrl+C to stop both processes."
 
 set +e
 wait -n "$GUI_PID" "$SCHEDULER_PID"
 EXIT_CODE=$?
 set -e
 
-echo "[deploy] A Phenopi process exited; stopping the remaining process."
+echo "[deploy] A Phenara process exited; stopping the remaining process."
 exit "$EXIT_CODE"

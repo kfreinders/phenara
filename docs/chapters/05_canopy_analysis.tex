@@ -13,10 +13,10 @@ each individual plant in one or more images.
 \subsection{Input Images}
 
 The canopy analysis pipeline operates on timestamped images produced by the
-Phenopi acquisition system. By default, these images are stored in:
+Phenara acquisition system. By default, these images are stored in:
 
 \begin{verbatim}
-$PHENOPI_ROOT/captures
+$PHENARA_ROOT/captures
 \end{verbatim}
 
 Image filenames should follow the standard capture format:
@@ -27,7 +27,7 @@ capture_YYYYMMDD_HHMMSS.jpg
 
 \subsection{Running Canopy Analysis}
 
-The analysis is executed from the Phenopi repository directory using the canopy
+The analysis is executed from the Phenara repository directory using the canopy
 analysis command line interface:
 
 \begin{verbatim}
@@ -52,7 +52,7 @@ segmentation.
 
 \subsection{Selecting a Color Channel}
 
-Phenopi relies on PlantCV to separate plant tissue from the background by
+Phenara relies on PlantCV to separate plant tissue from the background by
 thresholding one channel from a selected color space. Different channels
 emphasize different image properties. For example, some channels primarily
 describe brightness, while others describe differences in color. Before running
@@ -166,11 +166,11 @@ therefore be tuned using early time points, where plants are smallest.
 
 \subsection{Regions of Interest}
 
-Phenopi analyses plants within predefined regions of interest. Each region of
+Phenara analyses plants within predefined regions of interest. Each region of
 interest corresponds to one expected plant position in the tray
 \autoref{fig:roi-grid-diagnostic}. The region-of-interest step is important
 because it prevents neighbouring plants, tray edges, labels, colour cards, and
-background areas from being included in the trait measurements. While Phenopi
+background areas from being included in the trait measurements. While Phenara
 has automatic ROI detection, manual specification is advised for optimal
 results. The canopy analysis command can be run with an explicitly selected
 rectangular analysis region. This rectangle is defined by a width
@@ -179,7 +179,7 @@ top-left corner (\verb|--grid-x| and \verb|--grid-y|). This region should
 contain all pots that need to be analysed, while excluding as much irrelevant
 background as possible.
 
-Next, Phenopi needs to know about the expected tray layout. These can be
+Next, Phenara needs to know about the expected tray layout. These can be
 specified with \verb|--rows| and \verb|--columns|. The analysis region is then
 subdivided into this regular grid, and each cell is treated as the region of
 interest for one plant. 

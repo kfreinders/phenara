@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from gui.app import app
-from phenopi.config import PROJECT_ROOT
+from phenara.config import PROJECT_ROOT
 from gui.routes import schedule_api
 from gui.services.schedule_drafts import (
     attach_analysis_profile_to_draft,

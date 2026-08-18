@@ -5,7 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from phenopi.config import SETTINGS
+from phenara.config import SETTINGS
 
 
 @dataclass(frozen=True)

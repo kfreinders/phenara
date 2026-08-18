@@ -2,7 +2,7 @@ export async function api(path, options = {}) {
   const headers = new Headers(options.headers);
   if (options.body) headers.set("Content-Type", "application/json");
   if (["POST", "PUT", "PATCH", "DELETE"].includes(options.method?.toUpperCase())) {
-    headers.set("X-Phenopi-Request", "1");
+    headers.set("X-Phenara-Request", "1");
   }
   const response = await fetch(path, {
     cache: "no-store",
@@ -26,7 +26,7 @@ export async function api(path, options = {}) {
 export async function apiBlob(path, options = {}) {
   const headers = new Headers(options.headers);
   if (["POST", "PUT", "PATCH", "DELETE"].includes(options.method?.toUpperCase())) {
-    headers.set("X-Phenopi-Request", "1");
+    headers.set("X-Phenara-Request", "1");
   }
   const response = await fetch(path, { cache: "no-store", ...options, headers });
   if (!response.ok) {
