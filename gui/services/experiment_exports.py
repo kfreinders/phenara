@@ -15,7 +15,7 @@ class ExperimentExportError(ValueError):
     """A finished experiment cannot safely be exported or removed."""
 
 
-DOWNLOADABLE_STATES = {"completed", "cancelled"}
+DOWNLOADABLE_STATES = {"completed", "cancelled", "superseded"}
 
 
 def validate_finished_experiment(

@@ -83,6 +83,25 @@ def test_cancelled_dataset_can_be_downloaded_and_deleted(tmp_path):
     assert not run.archive_path.exists()
 
 
+def test_superseded_dataset_with_captures_can_be_downloaded_and_deleted(tmp_path):
+    run_id = uuid4()
+    schedule = finished_schedule(run_id)
+    run = RunArchive(
+        tmp_path,
+        configured_schedule(schedule),
+        schedule["hash"],
+        [NOW],
+    )
+    run.record(scheduled_at=NOW, status="succeeded", message="ok")
+    run.mark_ended("superseded", superseded_by=str(uuid4()))
+    run._archive_thread.join(timeout=5)
+
+    assert download_path(tmp_path, schedule) == run.archive_path
+    delete_experiment_data(tmp_path, schedule)
+    assert not run.directory.exists()
+    assert not run.archive_path.exists()
+
+
 def test_only_current_finished_experiment_can_be_exported():
     run_id = uuid4()
     schedule = finished_schedule(run_id)

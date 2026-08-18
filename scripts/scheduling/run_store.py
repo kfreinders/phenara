@@ -174,7 +174,9 @@ class RunArchive:
                 "deleted",
             }:
                 self._state = manifest["state"]
-                if manifest.get("state") in {"completed", "cancelled"}:
+                if manifest.get("state") in {"completed", "cancelled"} or (
+                    manifest.get("state") == "superseded" and self.events()
+                ):
                     self._start_download_archive()
                 return
             manifest["state"] = state
@@ -185,8 +187,9 @@ class RunArchive:
                 json.dumps(manifest, indent=2) + "\n",
             )
             self._state = state
+            has_events = bool(self.events())
             if self.registry is not None:
-                if state == "superseded" and not self.events():
+                if state == "superseded" and not has_events:
                     self.registry.remove(self.run["id"])
                 else:
                     now = (
@@ -201,7 +204,9 @@ class RunArchive:
                         capture_summary=self.status_payload(now)["summary"],
                         superseded_by=superseded_by,
                     )
-            if state in {"completed", "cancelled"}:
+            if state in {"completed", "cancelled"} or (
+                state == "superseded" and has_events
+            ):
                 self._start_download_archive()
 
     def _start_download_archive(self) -> None:
